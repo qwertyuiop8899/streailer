@@ -32,7 +32,7 @@ const manifest = {
     background: 'https://i.imgur.com/0bF00cA.png',
     resources: ['stream'],
     types: ['movie', 'series'],
-    idPrefixes: ['tt'],
+    idPrefixes: ['tt', 'tmdb:'],  // Supports both IMDb (tt...) and TMDB (tmdb:12345)
     catalogs: [],
     behaviorHints: {
         configurable: true
@@ -64,17 +64,36 @@ builder.defineStreamHandler(async ({ type, id, config }) => {
     // Get language from config, default to it-IT
     const language = config?.language || 'it-IT';
 
-    // Parse IMDb ID and optional season
-    let imdbId = id;
+    // Parse ID (supports IMDb tt..., TMDB tmdb:12345, or direct TMDB numeric)
+    let imdbId = null;
+    let tmdbId = null;
     let season = undefined;
 
-    // Handle series format: tt1234567:1:1 (imdb:season:episode)
-    if (id.includes(':')) {
+    // Detect ID type
+    if (id.startsWith('tmdb:')) {
+        // TMDB format: tmdb:12345 or tmdb:12345:1:1
+        const parts = id.split(':');
+        tmdbId = parseInt(parts[1], 10);
+        if (parts.length >= 3) {
+            season = parseInt(parts[2], 10);
+        }
+    } else if (id.startsWith('tt')) {
+        // IMDb format: tt1234567 or tt1234567:1:1
         const parts = id.split(':');
         imdbId = parts[0];
         if (parts.length >= 2) {
             season = parseInt(parts[1], 10);
         }
+    } else if (/^\d+/.test(id)) {
+        // Direct TMDB numeric: 12345 or 12345:1:1
+        const parts = id.split(':');
+        tmdbId = parseInt(parts[0], 10);
+        if (parts.length >= 2) {
+            season = parseInt(parts[1], 10);
+        }
+    } else {
+        console.log(`[Streailer] Unknown ID format: ${id}`);
+        return { streams: [] };
     }
 
     try {
@@ -83,7 +102,7 @@ builder.defineStreamHandler(async ({ type, id, config }) => {
             imdbId,
             undefined, // contentName - will be fetched from TMDB
             season,
-            undefined, // tmdbId - will be resolved from IMDb
+            tmdbId,    // Pass TMDB ID if available
             language
         );
 
