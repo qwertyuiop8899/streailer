@@ -538,10 +538,14 @@ async function getTrailerStreams(type, imdbId, contentName, season, tmdbId, lang
         const stream = {
             name: streamName,
             title: trailerResult.title,
-            ytId: trailerResult.ytId,
+            // Use URL instead of ytId to prevent auto-play in background
+            url: `https://www.youtube.com/watch?v=${trailerResult.ytId}`,
             behaviorHints: {
-                notWebReady: true,
-                bingeGroup: 'trailer'
+                notWebReady: false,  // Allow external player
+                bingeGroup: 'streailer-trailer',  // Separate group for trailers
+                // These hints help prevent affecting watch history
+                videoSize: 0,
+                filename: `trailer-${trailerResult.ytId}.mp4`
             }
         };
 
