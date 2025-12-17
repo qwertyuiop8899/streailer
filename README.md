@@ -35,10 +35,10 @@ Watch movie and TV series trailers in **your language** directly within Stremio!
 
 ## 🚀 Installation
 
-1. Go to the [Configure Page](https://test.pizzapi.uk/configure)
-2. Select your preferred trailer language
-3. Click **Install Addon**
-4. Enjoy trailers in your language! 🎉
+1. Go to the [Configure Page](https://addon.addon/configure)
+3. Select your preferred trailer language
+4. Click **Install Addon**
+5. Enjoy trailers in your language! 🎉
 
 ## 🛠️ Self-Hosting
 
