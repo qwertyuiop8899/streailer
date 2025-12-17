@@ -28,15 +28,14 @@ const manifest = {
     version: '1.0.0',
     name: 'Streailer - Trailer Provider',
     description: 'Trailer provider with multi-language support. TMDB → YouTube fallback → TMDB en-US',
-    logo: 'https://i.imgur.com/2Rgkbwu.png',
-    background: 'https://i.imgur.com/QfVqwJB.jpg',
+    logo: 'https://github.com/qwertyuiop8899/streamvix/blob/main/public/icon.png?raw=true',
+    background: 'https://i.imgur.com/0bF00cA.png',
     resources: ['stream'],
     types: ['movie', 'series'],
     idPrefixes: ['tt'],
     catalogs: [],
     behaviorHints: {
-        configurable: true,
-        configurationRequired: true
+        configurable: true
     },
     config: [
         {
@@ -99,8 +98,18 @@ builder.defineStreamHandler(async ({ type, id, config }) => {
 // Create Express app
 const app = express();
 
+// Redirect root to configure
+app.get('/', (req, res) => {
+    res.redirect('/configure');
+});
+
 // Serve custom configuration page
 app.get('/configure', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'configure.html'));
+});
+
+// Also serve configure at /:config/configure for Stremio compatibility
+app.get('/:config/configure', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'configure.html'));
 });
 
@@ -111,13 +120,28 @@ app.use('/static', express.static(path.join(__dirname, 'public')));
 const addonInterface = builder.getInterface();
 const addonRouter = getRouter(addonInterface);
 
-// Use the addon router
+// Manual manifest route to preserve behaviorHints (SDK strips them)
+app.get('/:config/manifest.json', (req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.json(manifest);
+});
+
+// Also handle base manifest
+app.get('/manifest.json', (req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.json(manifest);
+});
+
+// Use the addon router for other routes (streams, etc.)
 app.use('/', addonRouter);
 
 // Start server
-const port = process.env.PORT || 7000;
-app.listen(port, () => {
-    console.log(`[Streailer] Addon running at http://127.0.0.1:${port}`);
-    console.log(`[Streailer] Configure: http://127.0.0.1:${port}/configure`);
-    console.log(`[Streailer] Manifest: http://127.0.0.1:${port}/manifest.json`);
+const port = process.env.PORT || 7020;
+const host = '0.0.0.0';
+app.listen(port, host, () => {
+    console.log(`[Streailer] Addon running at http://${host}:${port}`);
+    console.log(`[Streailer] Configure: http://${host}:${port}/configure`);
+    console.log(`[Streailer] Manifest: http://${host}:${port}/manifest.json`);
 });
