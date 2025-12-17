@@ -35,7 +35,7 @@ Watch movie and TV series trailers in **your language** directly within Stremio!
 
 ## 🚀 Installation
 
-1. Go to the [Configure Page](https://addon.addon/configure)
+1. Go to the [Configure Page](https://9aa032f52161-strealier.baby-beamup.club/configure)
 3. Select your preferred trailer language
 4. Click **Install Addon**
 5. Enjoy trailers in your language! 🎉
