@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Streailer - Configuration</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0d1117;
+            --bg-secondary: #161b22;
+            --bg-tertiary: #21262d;
+            --accent: #7c3aed;
+            --accent-hover: #6d28d9;
+            --accent-glow: rgba(124, 58, 237, 0.4);
+            --text-primary: #f0f6fc;
+            --text-secondary: #8b949e;
+            --border: #30363d;
+            --success: #238636;
+            --success-glow: rgba(35, 134, 54, 0.4);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background-image:
+                radial-gradient(ellipse at top, rgba(124, 58, 237, 0.15) 0%, transparent 50%),
+                radial-gradient(ellipse at bottom right, rgba(139, 92, 246, 0.1) 0%, transparent 50%);
+        }
+
+        .container {
+            max-width: 480px;
+            width: 100%;
+        }
+
+        .card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        }
+
+        .logo-section {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+
+        .logo {
+            font-size: 48px;
+            margin-bottom: 12px;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+
+            0%,
+            100% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-8px);
+            }
+        }
+
+        .title {
+            font-size: 28px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #7c3aed, #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 8px;
+        }
+
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        .form-group {
+            margin-bottom: 24px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+
+        .select-wrapper {
+            position: relative;
+        }
+
+        .select-wrapper::after {
+            content: '▼';
+            position: absolute;
+            right: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 10px;
+            color: var(--text-secondary);
+            pointer-events: none;
+        }
+
+        select {
+            width: 100%;
+            padding: 14px 16px;
+            font-size: 16px;
+            font-family: inherit;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--text-primary);
+            cursor: pointer;
+            appearance: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        select:hover {
+            border-color: var(--accent);
+        }
+
+        select:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+
+        select option {
+            padding: 8px;
+            background: var(--bg-tertiary);
+        }
+
+        .button-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 16px 24px;
+            font-size: 16px;
+            font-weight: 600;
+            font-family: inherit;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent), #8b5cf6);
+            color: white;
+            box-shadow: 0 4px 16px var(--accent-glow);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px var(--accent-glow);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        .btn-secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background: var(--border);
+            border-color: var(--text-secondary);
+        }
+
+        .btn-icon {
+            font-size: 18px;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: var(--success);
+            color: white;
+            padding: 14px 24px;
+            border-radius: 10px;
+            font-weight: 500;
+            box-shadow: 0 4px 16px var(--success-glow);
+            opacity: 0;
+            transition: all 0.3s ease;
+        }
+
+        .toast.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+
+        .info-section {
+            margin-top: 24px;
+            padding-top: 24px;
+            border-top: 1px solid var(--border);
+        }
+
+        .info-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 12px;
+        }
+
+        .info-flow {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .flow-step {
+            background: var(--bg-tertiary);
+            padding: 6px 12px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .flow-arrow {
+            color: var(--accent);
+        }
+
+        @media (max-width: 480px) {
+            .card {
+                padding: 24px;
+            }
+
+            .title {
+                font-size: 24px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="card">
+            <div class="logo-section">
+                <div class="logo">🎬</div>
+                <h1 class="title">Streailer</h1>
+                <p class="subtitle">Multi-language Trailer Provider for Stremio</p>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">🌍 Select Trailer Language</label>
+                <div class="select-wrapper">
+                    <select id="languageSelect">
+                        <option value="en-US">🇺🇸 English (US)</option>
+                        <option value="es-MX">🇲🇽 Español (Latinoamérica)</option>
+                        <option value="pt-BR">🇧🇷 Português (Brasil)</option>
+                        <option value="de-DE">🇩🇪 Deutsch</option>
+                        <option value="fr-FR">🇫🇷 Français</option>
+                        <option value="es-ES">🇪🇸 Español (España)</option>
+                        <option value="it-IT">🇮🇹 Italiano</option>
+                        <option value="ru-RU">🇷🇺 Русский</option>
+                        <option value="ja-JP">🇯🇵 日本語</option>
+                        <option value="hi-IN">🇮🇳 हिन्दी</option>
+                        <option value="tr-TR">🇹🇷 Türkçe</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="button-group">
+                <a href="#" id="installBtn" class="btn btn-primary">
+                    <span class="btn-icon">📺</span>
+                    Install Addon
+                </a>
+                <button id="copyBtn" class="btn btn-secondary">
+                    <span class="btn-icon">📋</span>
+                    Copy Manifest URL
+                </button>
+            </div>
+
+            <div class="info-section">
+                <div class="info-title">Trailer Search Flow</div>
+                <div class="info-flow">
+                    <span class="flow-step">🎬 TMDB</span>
+                    <span class="flow-arrow">→</span>
+                    <span class="flow-step">▶️ YouTube</span>
+                    <span class="flow-arrow">→</span>
+                    <span class="flow-step">🇬🇧 TMDB EN</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="toast">✓ URL copied to clipboard!</div>
+
+    <script>
+        const languageSelect = document.getElementById('languageSelect');
+        const installBtn = document.getElementById('installBtn');
+        const copyBtn = document.getElementById('copyBtn');
+        const toast = document.getElementById('toast');
+
+        function getBaseUrl() {
+            const protocol = window.location.protocol;
+            const host = window.location.host;
+            return `${protocol}//${host}`;
+        }
+
+        function getManifestUrl() {
+            const language = languageSelect.value;
+            const baseUrl = getBaseUrl();
+            return `${baseUrl}/${encodeURIComponent(language)}/manifest.json`;
+        }
+
+        function getInstallUrl() {
+            const manifestUrl = getManifestUrl();
+            return manifestUrl.replace(/^https?:/, 'stremio:');
+        }
+
+        function updateInstallLink() {
+            installBtn.href = getInstallUrl();
+        }
+
+        function showToast(message) {
+            toast.textContent = message;
+            toast.classList.add('show');
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        languageSelect.addEventListener('change', updateInstallLink);
+
+        copyBtn.addEventListener('click', async () => {
+            const manifestUrl = getManifestUrl();
+            try {
+                await navigator.clipboard.writeText(manifestUrl);
+                showToast('✓ URL copied to clipboard!');
+            } catch (err) {
+                const textArea = document.createElement('textarea');
+                textArea.value = manifestUrl;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                showToast('✓ URL copied to clipboard!');
+            }
+        });
+
+        updateInstallLink();
+    </script>
+</body>
+
+</html>
