@@ -414,8 +414,22 @@ async function getTrailerStreams(type, imdbId, contentName, season, tmdbId, lang
         let contentTitle = contentName || '';
 
         if (tmdbId) {
+            // TMDB ID provided directly
             tmdbIdNum = tmdbId;
-        } else {
+            // Fetch title from TMDB if not provided
+            if (!contentTitle) {
+                const mediaType = type === 'series' ? 'tv' : 'movie';
+                try {
+                    const url = `${TMDB_BASE}/${mediaType}/${tmdbId}?api_key=${TMDB_KEY}&language=${language}`;
+                    const response = await fetch(url);
+                    const data = await response.json();
+                    contentTitle = data.title || data.name || '';
+                } catch (e) {
+                    console.log(`[TrailerProvider] Could not fetch title for TMDB ${tmdbId}`);
+                }
+            }
+        } else if (imdbId) {
+            // IMDb ID - convert to TMDB
             const tmdbResult = await imdbToTmdbWithLanguage(imdbId, type, language);
             if (!tmdbResult) {
                 console.log(`[TrailerProvider] Could not find TMDB ID for ${imdbId}`);
@@ -425,6 +439,9 @@ async function getTrailerStreams(type, imdbId, contentName, season, tmdbId, lang
             if (!contentTitle) {
                 contentTitle = tmdbResult.title;
             }
+        } else {
+            console.log('[TrailerProvider] No valid ID provided');
+            return [];
         }
 
         let trailerResult = null;
