@@ -25,7 +25,7 @@ const SUPPORTED_LANGUAGES = [
 // Manifest definition
 const manifest = {
     id: 'org.streailer.trailer',
-    version: '1.0.0',
+    version: '1.1.0',
     name: 'Streailer - Trailer Provider',
     description: 'Trailer provider with multi-language support. TMDB → YouTube fallback → TMDB en-US',
     logo: 'https://github.com/qwertyuiop8899/streamvix/blob/main/public/icon.png?raw=true',
@@ -45,6 +45,12 @@ const manifest = {
             options: SUPPORTED_LANGUAGES.map(l => l.code),
             default: 'it-IT',
             required: true
+        },
+        {
+            key: 'externalLink',
+            type: 'checkbox',
+            title: 'External Link',
+            default: false
         }
     ]
 };
@@ -63,6 +69,8 @@ builder.defineStreamHandler(async ({ type, id, config }) => {
 
     // Get language from config, default to it-IT
     const language = config?.language || 'it-IT';
+    // Get externalLink from config, default to false
+    const useExternalLink = config?.externalLink === 'true' || config?.externalLink === true;
 
     // Parse ID (supports IMDb tt..., TMDB tmdb:12345, or direct TMDB numeric)
     let imdbId = null;
@@ -103,7 +111,8 @@ builder.defineStreamHandler(async ({ type, id, config }) => {
             undefined, // contentName - will be fetched from TMDB
             season,
             tmdbId,    // Pass TMDB ID if available
-            language
+            language,
+            useExternalLink  // Pass externalLink flag
         );
 
         console.log(`[Streailer] Returning ${streams.length} stream(s)`);

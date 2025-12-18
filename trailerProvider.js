@@ -399,7 +399,7 @@ async function searchYouTubeTrailer(contentName, type, season, language = 'en-US
  * Get trailer streams for a movie or TV series
  * Flow: TMDB (user language) → YouTube scraping (localized) → TMDB en-US
  */
-async function getTrailerStreams(type, imdbId, contentName, season, tmdbId, language = 'it-IT') {
+async function getTrailerStreams(type, imdbId, contentName, season, tmdbId, language = 'it-IT', useExternalLink = false) {
     if (!TMDB_KEY) {
         console.warn('[TrailerProvider] TMDB_KEY not set, skipping trailer fetch');
         return [];
@@ -533,17 +533,28 @@ async function getTrailerStreams(type, imdbId, contentName, season, tmdbId, lang
                 streamName = '🎬 Trailer';
         }
 
-        console.log(`[TrailerProvider] Final: ${streamName} | ${trailerResult.title} (${trailerResult.source})`);
+        // Add external link indicator if enabled
+        if (useExternalLink) {
+            streamName = '🔗 ' + streamName;
+        }
+
+        console.log(`[TrailerProvider] Final: ${streamName} | ${trailerResult.title} (${trailerResult.source})${useExternalLink ? ' [External]' : ''}`);
 
         const stream = {
             name: streamName,
             title: trailerResult.title,
-            ytId: trailerResult.ytId,
             behaviorHints: {
                 notWebReady: true,
                 bingeGroup: 'trailer'
             }
         };
+
+        // Use externalUrl for external app, or ytId for internal player
+        if (useExternalLink) {
+            stream.externalUrl = `https://www.youtube.com/watch?v=${trailerResult.ytId}`;
+        } else {
+            stream.ytId = trailerResult.ytId;
+        }
 
         return [stream];
 
