@@ -2,7 +2,7 @@
 
 Watch movie and TV series trailers in **your language** directly within Stremio!
 
-![Streailer Configuration](https://github.com/Stremio/stremio-art/raw/main/originals/tymmesyde.gif)
+![Streailer Configuration](https://i.imgur.com/rEN6X72.jpeg)
 
 ---
 
