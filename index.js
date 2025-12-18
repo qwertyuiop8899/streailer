@@ -148,18 +148,15 @@ app.use('/static', express.static(path.join(__dirname, 'public')));
 const addonInterface = builder.getInterface();
 const addonRouter = getRouter(addonInterface);
 
-// Manual manifest route to preserve behaviorHints (SDK strips them)
-app.get('/:config/manifest.json', (req, res) => {
-    res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.json(manifest);
-});
-
-// Also handle base manifest
-app.get('/manifest.json', (req, res) => {
-    res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.json(manifest);
+// IMPORTANT: Middleware to intercept ALL manifest.json requests BEFORE SDK router
+// This ensures we always return OUR manifest, not the SDK's cached copy
+app.use((req, res, next) => {
+    if (req.path.endsWith('/manifest.json')) {
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        return res.json(manifest);
+    }
+    next();
 });
 
 // Use the addon router for other routes (streams, etc.)
