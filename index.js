@@ -25,7 +25,7 @@ const SUPPORTED_LANGUAGES = [
 // Manifest definition
 const manifest = {
     id: 'org.streailer.trailer',
-    version: '1.1.0',
+    version: '1.1.2',
     name: 'Streailer - Trailer Provider',
     description: 'Trailer provider with multi-language support. TMDB → YouTube fallback → TMDB en-US',
     logo: 'https://github.com/qwertyuiop8899/streamvix/blob/main/public/icon.png?raw=true',

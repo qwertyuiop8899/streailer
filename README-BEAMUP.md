@@ -41,7 +41,7 @@ Your addon will be available at:
 https://YOUR-ID-streailer.baby-beamup.club/configure
 ```
 
-## Update Existing Deploy
+## Update Existing Deploy (NO PUSH!)
 
 ```bash
 git add .

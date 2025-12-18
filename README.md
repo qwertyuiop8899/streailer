@@ -4,26 +4,45 @@ Watch movie and TV series trailers in **your language** directly within Stremio!
 
 ![Streailer Configuration](https://github.com/Stremio/stremio-art/raw/main/originals/tymmesyde.gif)
 
+---
+
+## 🆕 v1.1.2 - External Link Mode
+
+> **Having playback issues?** Some users experience problems with the internal player (black screen, poster stuck in background, infinite buffering).
+
+### ✅ The Solution: External Link
+
+With the new **External Link** option, trailers open directly in your device's **YouTube app** instead of Stremio's built-in player.
+
+**How to enable:**
+1. Go to the [configuration page](https://9aa032f52161-streailer.baby-beamup.club/configure)
+2. Enable the **🔗 External Link** toggle
+3. Click **Install Addon** (reinstall with new configuration)
+4. Trailers now open in the external YouTube app! 🎉
+
+---
+
 ## ✨ Features
 
-- **11 Languages Supported**: English, Spanish (Latin America & Spain), Portuguese (Brazil), German, French, Italian, Russian, Japanese, Hindi, Turkish
-- **Smart Fallback System**: TMDB → YouTube → TMDB English
-- **Localized Search**: Finds dubbed trailers in your preferred language
-- **No API Key Required**: Works out of the box
+- **11 Languages Supported**: English, Spanish, Portuguese, German, French, Italian, Russian, Japanese, Hindi, Turkish
+- **Smart Fallback**: TMDB → YouTube → TMDB English
+- **Dual ID Support**: Works with IMDb and TMDB IDs
+- **Localized Search**: Finds dubbed trailers in your language
+- **External Link Mode**: Open trailers in external YouTube app (fixes playback issues)
 
 ## 🎯 How It Works
 
 ```
-1️⃣ TMDB (Your Language) → Found? ✅ Done!
-                              ↓ Not found
-2️⃣ YouTube Search         → Found? ✅ Done!
-   (localized query)          ↓ Not found  
-3️⃣ TMDB (English)         → Fallback trailer
+1️⃣ TMDB (Your Language)    → Found? ✅ Done!
+                                 ↓ Not found
+2️⃣ YouTube Search          → Found? ✅ Done!
+   (localized query)             ↓ Not found  
+3️⃣ TMDB (English)          → Fallback trailer
 ```
 
 ## 📺 Supported Languages
 
-| Tier 1 - Dubbing Markets | Tier 2 - Strategic |
+| Tier 1 - Dubbing Markets | Tier 2 - Expansion |
 |--------------------------|-------------------|
 | 🇺🇸 English (US) | 🇷🇺 Russian |
 | 🇲🇽 Spanish (Latin America) | 🇯🇵 Japanese |
@@ -35,10 +54,20 @@ Watch movie and TV series trailers in **your language** directly within Stremio!
 
 ## 🚀 Installation
 
-1. Go to the [Configure Page](https://9aa032f52161-streailer.baby-beamup.club/configure)
-3. Select your preferred trailer language
+1. Go to the [Configuration Page](https://9aa032f52161-streailer.baby-beamup.club/configure)
+2. Select your trailer language
+3. **Optional**: Enable **External Link** if you have playback issues
 4. Click **Install Addon**
 5. Enjoy trailers in your language! 🎉
+
+## 📝 Stream Icons
+
+| Icon | Source |
+|------|--------|
+| 🎬 Trailer | TMDB (your language) |
+| 🎬▶️ Trailer | YouTube |
+| 🎬🇬🇧 Trailer | TMDB English fallback |
+| 🔗 🎬 Trailer | External Link (YouTube app) |
 
 ## 🛠️ Self-Hosting
 
@@ -49,26 +78,9 @@ npm install
 npm start
 ```
 
-The addon will be available at `http://localhost:7000`
+## 🚀 Deploy
 
-### Environment Variables
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `PORT` | Server port | 7000 |
-| `TMDB_API_KEY` | Custom TMDB API key | Built-in |
-
-## 📝 Stream Icons
-
-| Icon | Source |
-|------|--------|
-| 🎬 Trailer | TMDB (your language) |
-| 🎬▶️ Trailer | YouTube |
-| 🎬🇬🇧 Trailer | TMDB (English fallback) |
-
-## 🤝 Contributing
-
-Pull requests are welcome! For major changes, please open an issue first.
+See [README-BEAMUP.md](README-BEAMUP.md) for BeamUp deployment instructions.
 
 ## 📄 License
 
