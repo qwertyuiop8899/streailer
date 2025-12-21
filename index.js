@@ -19,17 +19,20 @@ const SUPPORTED_LANGUAGES = [
     { code: 'ru-RU', name: 'Русский' },
     { code: 'ja-JP', name: '日本語' },
     { code: 'hi-IN', name: 'हिन्दी' },
-    { code: 'tr-TR', name: 'Türkçe' }
+    { code: 'tr-TR', name: 'Türkçe' },
+    // Tier 3: Nuove Lingue
+    { code: 'ta-IN', name: 'தமிழ் (Tamil)' },
+    { code: 'pt-PT', name: 'Português (Portugal)' }
 ];
 
 // Manifest definition
 const manifest = {
     id: 'org.streailer.trailer',
-    version: '1.1.3',
+    version: '1.0.0',
     name: 'Streailer - Trailer Provider',
     description: 'Trailer provider with multi-language support. TMDB → YouTube fallback → TMDB en-US',
     logo: 'https://github.com/qwertyuiop8899/streamvix/blob/main/public/icon.png?raw=true',
-    background: 'https://i.imgur.com/rEN6X72.jpeg',
+    background: 'https://i.imgur.com/0bF00cA.png',
     resources: ['stream'],
     types: ['movie', 'series'],
     idPrefixes: ['tt', 'tmdb:'],  // Supports both IMDb (tt...) and TMDB (tmdb:12345)
@@ -45,12 +48,6 @@ const manifest = {
             options: SUPPORTED_LANGUAGES.map(l => l.code),
             default: 'it-IT',
             required: true
-        },
-        {
-            key: 'externalLink',
-            type: 'checkbox',
-            title: 'External Link',
-            default: false
         }
     ]
 };
@@ -69,8 +66,6 @@ builder.defineStreamHandler(async ({ type, id, config }) => {
 
     // Get language from config, default to it-IT
     const language = config?.language || 'it-IT';
-    // Get externalLink from config, default to false
-    const useExternalLink = config?.externalLink === 'true' || config?.externalLink === true;
 
     // Parse ID (supports IMDb tt..., TMDB tmdb:12345, or direct TMDB numeric)
     let imdbId = null;
@@ -111,8 +106,7 @@ builder.defineStreamHandler(async ({ type, id, config }) => {
             undefined, // contentName - will be fetched from TMDB
             season,
             tmdbId,    // Pass TMDB ID if available
-            language,
-            useExternalLink  // Pass externalLink flag
+            language
         );
 
         console.log(`[Streailer] Returning ${streams.length} stream(s)`);
@@ -148,15 +142,18 @@ app.use('/static', express.static(path.join(__dirname, 'public')));
 const addonInterface = builder.getInterface();
 const addonRouter = getRouter(addonInterface);
 
-// IMPORTANT: Middleware to intercept ALL manifest.json requests BEFORE SDK router
-// This ensures we always return OUR manifest, not the SDK's cached copy
-app.use((req, res, next) => {
-    if (req.path.endsWith('/manifest.json')) {
-        res.setHeader('Content-Type', 'application/json');
-        res.setHeader('Access-Control-Allow-Origin', '*');
-        return res.json(manifest);
-    }
-    next();
+// Manual manifest route to preserve behaviorHints (SDK strips them)
+app.get('/:config/manifest.json', (req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.json(manifest);
+});
+
+// Also handle base manifest
+app.get('/manifest.json', (req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.json(manifest);
 });
 
 // Use the addon router for other routes (streams, etc.)

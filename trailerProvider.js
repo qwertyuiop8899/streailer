@@ -196,6 +196,41 @@ const TRANSLATIONS = {
             10: ['10', 'on', 'onuncu', 'tenth', 'ten'],
         }
     },
+
+    // === TIER 3: Nuove Lingue ===
+
+    'ta-IN': {
+        trailer: 'டிரெய்லர் தமிழ்',  // "trailer Tamil"
+        season: 'சீசன்',              // "Season"
+        numberWords: {
+            1: ['1', 'ஒன்று', 'முதல்', 'first', 'one'],
+            2: ['2', 'இரண்டு', 'இரண்டாம்', 'second', 'two'],
+            3: ['3', 'மூன்று', 'மூன்றாம்', 'third', 'three'],
+            4: ['4', 'நான்கு', 'நான்காம்', 'fourth', 'four'],
+            5: ['5', 'ஐந்து', 'ஐந்தாம்', 'fifth', 'five'],
+            6: ['6', 'ஆறு', 'ஆறாம்', 'sixth', 'six'],
+            7: ['7', 'ஏழு', 'ஏழாம்', 'seventh', 'seven'],
+            8: ['8', 'எட்டு', 'எட்டாம்', 'eighth', 'eight'],
+            9: ['9', 'ஒன்பது', 'ஒன்பதாம்', 'ninth', 'nine'],
+            10: ['10', 'பத்து', 'பத்தாம்', 'tenth', 'ten'],
+        }
+    },
+    'pt-PT': {
+        trailer: 'trailer português',
+        season: 'Temporada',
+        numberWords: {
+            1: ['1', 'um', 'primeiro', 'primeira', 'first', 'one'],
+            2: ['2', 'dois', 'segundo', 'segunda', 'second', 'two'],
+            3: ['3', 'três', 'terceiro', 'terceira', 'third', 'three'],
+            4: ['4', 'quatro', 'quarto', 'quarta', 'fourth', 'four'],
+            5: ['5', 'cinco', 'quinto', 'quinta', 'fifth', 'five'],
+            6: ['6', 'seis', 'sexto', 'sexta', 'sixth', 'six'],
+            7: ['7', 'sete', 'sétimo', 'sétima', 'seventh', 'seven'],
+            8: ['8', 'oito', 'oitavo', 'oitava', 'eighth', 'eight'],
+            9: ['9', 'nove', 'nono', 'nona', 'ninth', 'nine'],
+            10: ['10', 'dez', 'décimo', 'décima', 'tenth', 'ten'],
+        }
+    },
 };
 
 // Helper to get translation with fallback to English
@@ -399,7 +434,7 @@ async function searchYouTubeTrailer(contentName, type, season, language = 'en-US
  * Get trailer streams for a movie or TV series
  * Flow: TMDB (user language) → YouTube scraping (localized) → TMDB en-US
  */
-async function getTrailerStreams(type, imdbId, contentName, season, tmdbId, language = 'it-IT', useExternalLink = false) {
+async function getTrailerStreams(type, imdbId, contentName, season, tmdbId, language = 'it-IT') {
     if (!TMDB_KEY) {
         console.warn('[TrailerProvider] TMDB_KEY not set, skipping trailer fetch');
         return [];
@@ -533,28 +568,17 @@ async function getTrailerStreams(type, imdbId, contentName, season, tmdbId, lang
                 streamName = '🎬 Trailer';
         }
 
-        // Add external link indicator if enabled
-        if (useExternalLink) {
-            streamName = '🔗 ' + streamName;
-        }
-
-        console.log(`[TrailerProvider] Final: ${streamName} | ${trailerResult.title} (${trailerResult.source})${useExternalLink ? ' [External]' : ''}`);
+        console.log(`[TrailerProvider] Final: ${streamName} | ${trailerResult.title} (${trailerResult.source})`);
 
         const stream = {
             name: streamName,
             title: trailerResult.title,
+            ytId: trailerResult.ytId,
             behaviorHints: {
                 notWebReady: true,
                 bingeGroup: 'trailer'
             }
         };
-
-        // Use externalUrl for external app, or ytId for internal player
-        if (useExternalLink) {
-            stream.externalUrl = `https://www.youtube.com/watch?v=${trailerResult.ytId}`;
-        } else {
-            stream.ytId = trailerResult.ytId;
-        }
 
         return [stream];
 
