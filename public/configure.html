@@ -611,6 +611,7 @@
                         <option value="en-US">🇺🇸 English (US)</option>
                         <option value="es-MX">🇲🇽 Español (Latinoamérica)</option>
                         <option value="pt-BR">🇧🇷 Português (Brasil)</option>
+                        <option value="pt-PT">🇵🇹 Português (Portugal)</option>
                         <option value="de-DE">🇩🇪 Deutsch</option>
                         <option value="fr-FR">🇫🇷 Français</option>
                         <option value="es-ES">🇪🇸 Español (España)</option>
@@ -618,6 +619,7 @@
                         <option value="ru-RU">🇷🇺 Русский</option>
                         <option value="ja-JP">🇯🇵 日本語</option>
                         <option value="hi-IN">🇮🇳 हिन्दी</option>
+                        <option value="ta-IN">🇮🇳 தமிழ்</option>
                         <option value="tr-TR">🇹🇷 Türkçe</option>
                     </select>
                 </div>
@@ -630,7 +632,8 @@
                         <input type="checkbox" id="externalLinkToggle">
                         <span class="toggle-slider"></span>
                     </label>
-                    <span class="toggle-description">Riproduci i trailer nell'app YouTube esterna</span>
+                    <span id="toggleDescription" class="toggle-description">Play trailers in the external YouTube
+                        app</span>
                 </div>
             </div>
 
@@ -666,6 +669,29 @@
         const installBtn = document.getElementById('installBtn');
         const copyBtn = document.getElementById('copyBtn');
         const toast = document.getElementById('toast');
+        const toggleDescription = document.getElementById('toggleDescription');
+
+        // Translations for the external link toggle description
+        const translations = {
+            'en-US': 'Play trailers in the external YouTube app',
+            'es-MX': 'Reproduce los trailers en la app externa de YouTube',
+            'pt-BR': 'Reproduzir trailers no aplicativo externo do YouTube',
+            'pt-PT': 'Reproduzir trailers na aplicação externa do YouTube',
+            'de-DE': 'Trailer in der externen YouTube-App abspielen',
+            'fr-FR': 'Lire les bandes-annonces dans l\'application YouTube externe',
+            'es-ES': 'Reproducir trailers en la app externa de YouTube',
+            'it-IT': 'Riproduci i trailer nell\'app YouTube esterna',
+            'ru-RU': 'Воспроизводить трейлеры во внешнем приложении YouTube',
+            'ja-JP': '外部YouTubeアプリでトレーラーを再生する',
+            'hi-IN': 'बाहरी YouTube ऐप में ट्रेलर चलाएं',
+            'ta-IN': 'வெளிப்புற YouTube பயன்பாட்டில் டிரெய்லர்களை இயக்கவும்',
+            'tr-TR': 'Fragmanları harici YouTube uygulamasında oynat'
+        };
+
+        function updateToggleDescription() {
+            const lang = languageSelect.value;
+            toggleDescription.textContent = translations[lang] || translations['en-US'];
+        }
 
         function getBaseUrl() {
             const protocol = window.location.protocol;
@@ -701,7 +727,10 @@
             }, 3000);
         }
 
-        languageSelect.addEventListener('change', updateInstallLink);
+        languageSelect.addEventListener('change', () => {
+            updateInstallLink();
+            updateToggleDescription();
+        });
         externalLinkToggle.addEventListener('change', updateInstallLink);
 
         copyBtn.addEventListener('click', async () => {
@@ -720,7 +749,9 @@
             }
         });
 
+        // Initialize
         updateInstallLink();
+        updateToggleDescription();
     </script>
 </body>
 
