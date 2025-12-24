@@ -30,7 +30,7 @@ const manifest = {
     version: '1.1.2',
     name: 'Streailer - Trailer Provider',
     description: 'Trailer provider with multi-language support. TMDB → YouTube fallback → TMDB en-US',
-    logo: 'https://github.com/qwertyuiop8899/streamvix/blob/main/public/icon.png?raw=true',
+    logo: 'https://i.imgur.com/F7dxBVt.png',
     background: 'https://i.imgur.com/rEN6X72.jpeg',
     resources: ['stream'],
     types: ['movie', 'series'],
