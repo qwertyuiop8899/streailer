@@ -75,13 +75,19 @@ function getRecapTranslation(language) {
 
 /**
  * Search YouTube using HTML scraping
+ * @param {string} query - Search query
+ * @param {string} language - Language code (e.g. 'it-IT')
  */
-async function searchYouTubeScraping(query) {
+async function searchYouTubeScraping(query, language = 'en-US') {
     try {
         const encodedQuery = encodeURIComponent(query);
-        const url = `https://www.youtube.com/results?search_query=${encodedQuery}`;
+        // Extract country and lang from language code (e.g. 'it-IT' -> gl=IT, hl=it)
+        const [lang, country] = language.split('-');
+        const gl = country || 'US';
+        const hl = lang || 'en';
+        const url = `https://www.youtube.com/results?search_query=${encodedQuery}&gl=${gl}&hl=${hl}`;
 
-        console.log(`[RecapProvider] YouTube search: ${query}`);
+        console.log(`[RecapProvider] YouTube search: ${query} (gl=${gl}, hl=${hl})`);
 
         const response = await fetch(url, {
             headers: {
@@ -189,7 +195,7 @@ async function searchRecapVideo(seriesName, season, provider, language = 'it-IT'
     // Step 1: Localized with provider
     if (provider) {
         const query1 = `${seriesName} ${recapT.recap} ${recapT.season} ${season} ${provider}`;
-        const result1 = await searchYouTubeScraping(query1);
+        const result1 = await searchYouTubeScraping(query1, language);
         if (result1) {
             console.log(`[RecapProvider] ✓ Found (step 1)`);
             return result1;
@@ -198,7 +204,7 @@ async function searchRecapVideo(seriesName, season, provider, language = 'it-IT'
 
     // Step 2: Localized without provider
     const query2 = `${seriesName} ${recapT.recap} ${recapT.season} ${season}`;
-    const result2 = await searchYouTubeScraping(query2);
+    const result2 = await searchYouTubeScraping(query2, language);
     if (result2) {
         console.log(`[RecapProvider] ✓ Found (step 2)`);
         return result2;
@@ -213,7 +219,7 @@ async function searchRecapVideo(seriesName, season, provider, language = 'it-IT'
     // Step 3: English with provider
     if (provider) {
         const query3 = `${seriesName} recap Season ${season} ${provider}`;
-        const result3 = await searchYouTubeScraping(query3);
+        const result3 = await searchYouTubeScraping(query3, 'en-US');
         if (result3) {
             console.log(`[RecapProvider] ✓ Found (step 3 EN)`);
             return result3;
@@ -222,7 +228,7 @@ async function searchRecapVideo(seriesName, season, provider, language = 'it-IT'
 
     // Step 4: English without provider
     const query4 = `${seriesName} recap Season ${season}`;
-    const result4 = await searchYouTubeScraping(query4);
+    const result4 = await searchYouTubeScraping(query4, 'en-US');
     if (result4) {
         console.log(`[RecapProvider] ✓ Found (step 4 EN)`);
         return result4;
