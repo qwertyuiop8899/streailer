@@ -1,0 +1,207 @@
+#!/usr/bin/env node
+
+const { addonBuilder, getRouter } = require('stremio-addon-sdk');
+const express = require('express');
+const path = require('path');
+const { getTrailerStreams, isTrailerProviderAvailable, imdbToTmdbWithLanguage } = require('./trailerProvider');
+const { getRecapStreams } = require('./recapProvider');
+
+// Supported languages - Tier 1 (Dubbing-centric) + Tier 2 (Strategic Expansion)
+const SUPPORTED_LANGUAGES = [
+    // Tier 1: Indispensabili (Mercati doppiaggio-centrici)
+    { code: 'en-US', name: 'English (US)' },
+    { code: 'es-MX', name: 'Español (Latinoamérica)' },
+    { code: 'pt-BR', name: 'Português (Brasil)' },
+    { code: 'pt-PT', name: 'Português (Portugal)' },
+    { code: 'de-DE', name: 'Deutsch' },
+    { code: 'fr-FR', name: 'Français' },
+    { code: 'es-ES', name: 'Español (España)' },
+    { code: 'it-IT', name: 'Italiano' },
+    // Tier 2: Espansione Strategica
+    { code: 'ru-RU', name: 'Русский' },
+    { code: 'ja-JP', name: '日本語' },
+    { code: 'hi-IN', name: 'हिन्दी' },
+    { code: 'ta-IN', name: 'தமிழ்' },
+    { code: 'tr-TR', name: 'Türkçe' }
+];
+
+// Manifest definition
+const manifest = {
+    id: 'org.streailer.trailer',
+    version: '1.2.0',
+    name: 'Streailer - Trailer Provider',
+    description: 'Trailer provider with multi-language support. TMDB → YouTube fallback → TMDB en-US. Season recaps for TV series.',
+    logo: 'https://i.imgur.com/F7dxBVt.png',
+    background: 'https://i.imgur.com/rEN6X72.jpeg',
+    resources: ['stream'],
+    types: ['movie', 'series'],
+    idPrefixes: ['tt', 'tmdb:'],  // Supports both IMDb (tt...) and TMDB (tmdb:12345)
+    catalogs: [],
+    behaviorHints: {
+        configurable: true
+    },
+    config: [
+        {
+            key: 'language',
+            type: 'select',
+            title: 'Lingua Trailer / Trailer Language',
+            options: SUPPORTED_LANGUAGES.map(l => l.code),
+            default: 'it-IT',
+            required: true
+        },
+        {
+            key: 'externalLink',
+            type: 'checkbox',
+            title: 'External Link',
+            default: false
+        },
+        {
+            key: 'showRecap',
+            type: 'checkbox',
+            title: 'Season Recaps (TV Series)',
+            default: false
+        }
+    ]
+};
+
+// Create addon builder
+const builder = new addonBuilder(manifest);
+
+// Stream handler
+builder.defineStreamHandler(async ({ type, id, config }) => {
+    console.log(`[Streailer] Stream request: type=${type}, id=${id}, config=${JSON.stringify(config)}`);
+
+    if (!isTrailerProviderAvailable()) {
+        console.warn('[Streailer] TMDB API key not configured');
+        return { streams: [] };
+    }
+
+    // Get config options
+    const language = config?.language || 'it-IT';
+    const useExternalLink = config?.externalLink === 'true' || config?.externalLink === true;
+    const showRecap = config?.showRecap === 'true' || config?.showRecap === true;
+
+    // Parse ID (supports IMDb tt..., TMDB tmdb:12345, or direct TMDB numeric)
+    let imdbId = null;
+    let tmdbId = null;
+    let season = undefined;
+
+    // Detect ID type
+    if (id.startsWith('tmdb:')) {
+        const parts = id.split(':');
+        tmdbId = parseInt(parts[1], 10);
+        if (parts.length >= 3) {
+            season = parseInt(parts[2], 10);
+        }
+    } else if (id.startsWith('tt')) {
+        const parts = id.split(':');
+        imdbId = parts[0];
+        if (parts.length >= 2) {
+            season = parseInt(parts[1], 10);
+        }
+    } else if (/^\d+/.test(id)) {
+        const parts = id.split(':');
+        tmdbId = parseInt(parts[0], 10);
+        if (parts.length >= 2) {
+            season = parseInt(parts[1], 10);
+        }
+    } else {
+        console.log(`[Streailer] Unknown ID format: ${id}`);
+        return { streams: [] };
+    }
+
+    try {
+        // Get trailer streams
+        const trailerStreams = await getTrailerStreams(
+            type === 'series' ? 'series' : 'movie',
+            imdbId,
+            undefined,
+            season,
+            tmdbId,
+            language,
+            useExternalLink
+        );
+
+        // Get recap streams for TV series if enabled
+        let recapStreams = [];
+        if (showRecap && type === 'series' && season !== undefined && season >= 2 && (tmdbId || imdbId)) {
+            // Convert IMDb to TMDB if needed
+            let recapTmdbId = tmdbId;
+            if (!recapTmdbId && imdbId) {
+                const converted = await imdbToTmdbWithLanguage(imdbId, 'series', language);
+                if (converted) {
+                    recapTmdbId = converted.id;
+                    console.log(`[Streailer] Converted ${imdbId} to TMDB ID: ${recapTmdbId}`);
+                }
+            }
+
+            // Get series name from first trailer stream title
+            let seriesName = '';
+            if (trailerStreams.length > 0 && trailerStreams[0].title) {
+                // Extract series name from trailer title (remove season part)
+                seriesName = trailerStreams[0].title.split(/\s+(Season|Stagione|Temporada|Staffel|Saison|Сезон|シーズン|सीज़न|சீசன்|Sezon)/i)[0].trim();
+            }
+
+            if (seriesName) {
+                recapStreams = await getRecapStreams(recapTmdbId, seriesName, season, language, useExternalLink);
+            }
+        }
+
+        // Combine: trailer first, then recaps
+        const streams = [...trailerStreams, ...recapStreams];
+
+        console.log(`[Streailer] Returning ${streams.length} stream(s) (${trailerStreams.length} trailer + ${recapStreams.length} recaps)`);
+        return { streams };
+    } catch (error) {
+        console.error('[Streailer] Error fetching streams:', error);
+        return { streams: [] };
+    }
+});
+
+// Create Express app
+const app = express();
+
+// Redirect root to configure
+app.get('/', (req, res) => {
+    res.redirect('/configure');
+});
+
+// Serve custom configuration page
+app.get('/configure', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'configure.html'));
+});
+
+// Also serve configure at /:config/configure for Stremio compatibility
+app.get('/:config/configure', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'configure.html'));
+});
+
+// Serve static files
+app.use('/static', express.static(path.join(__dirname, 'public')));
+
+// Get the addon router
+const addonInterface = builder.getInterface();
+const addonRouter = getRouter(addonInterface);
+
+// IMPORTANT: Middleware to intercept ALL manifest.json requests BEFORE SDK router
+// This ensures we always return OUR manifest, not the SDK's cached copy
+app.use((req, res, next) => {
+    if (req.path.endsWith('/manifest.json')) {
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        return res.json(manifest);
+    }
+    next();
+});
+
+// Use the addon router for other routes (streams, etc.)
+app.use('/', addonRouter);
+
+// Start server
+const port = process.env.PORT || 7020;
+const host = '0.0.0.0';
+app.listen(port, host, () => {
+    console.log(`[Streailer] Addon running at http://${host}:${port}`);
+    console.log(`[Streailer] Configure: http://${host}:${port}/configure`);
+    console.log(`[Streailer] Manifest: http://${host}:${port}/manifest.json`);
+});
