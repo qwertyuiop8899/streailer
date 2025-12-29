@@ -11,21 +11,22 @@ const TMDB_KEY = 'ad0f7351455041d8c9c0d4370a4b5fa5';
 
 /**
  * Recap translations for YouTube search queries
+ * langKeyword forces YouTube to return results in the correct language
  */
 const RECAP_TRANSLATIONS = {
-    'en-US': { recap: 'recap', season: 'Season' },
-    'it-IT': { recap: 'recap', season: 'Stagione' },
-    'es-MX': { recap: 'resumen', season: 'Temporada' },
-    'es-ES': { recap: 'resumen', season: 'Temporada' },
-    'pt-BR': { recap: 'recap', season: 'Temporada' },
-    'pt-PT': { recap: 'recap', season: 'Temporada' },
-    'de-DE': { recap: 'Recap', season: 'Staffel' },
-    'fr-FR': { recap: 'recap', season: 'Saison' },
-    'ru-RU': { recap: 'recap', season: 'Сезон' },
-    'ja-JP': { recap: 'recap', season: 'シーズン' },
-    'hi-IN': { recap: 'recap', season: 'सीज़न' },
-    'ta-IN': { recap: 'recap', season: 'சீசன்' },
-    'tr-TR': { recap: 'özet', season: 'Sezon' }
+    'en-US': { recap: 'recap', season: 'Season', langKeyword: '' },
+    'it-IT': { recap: 'recap', season: 'Stagione', langKeyword: 'italiano' },
+    'es-MX': { recap: 'resumen', season: 'Temporada', langKeyword: 'español latino' },
+    'es-ES': { recap: 'resumen', season: 'Temporada', langKeyword: 'español' },
+    'pt-BR': { recap: 'recap', season: 'Temporada', langKeyword: 'português' },
+    'pt-PT': { recap: 'recap', season: 'Temporada', langKeyword: 'português' },
+    'de-DE': { recap: 'Recap', season: 'Staffel', langKeyword: 'deutsch' },
+    'fr-FR': { recap: 'recap', season: 'Saison', langKeyword: 'français' },
+    'ru-RU': { recap: 'recap', season: 'Сезон', langKeyword: 'русский' },
+    'ja-JP': { recap: 'recap', season: 'シーズン', langKeyword: '日本語' },
+    'hi-IN': { recap: 'recap', season: 'सीज़न', langKeyword: 'हिंदी' },
+    'ta-IN': { recap: 'recap', season: 'சீசன்', langKeyword: 'தமிழ்' },
+    'tr-TR': { recap: 'özet', season: 'Sezon', langKeyword: 'türkçe' }
 };
 
 /**
@@ -91,7 +92,9 @@ async function searchYouTubeScraping(query, language = 'en-US') {
 
         const response = await fetch(url, {
             headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Accept-Language': `${hl}-${gl},${hl};q=0.9,en;q=0.8`,
+                'Cookie': `PREF=hl=${hl}&gl=${gl}; CONSENT=YES+`
             }
         });
 
@@ -191,10 +194,11 @@ async function getWatchProviders(tmdbId, language = 'it-IT') {
 async function searchRecapVideo(seriesName, season, provider, language = 'it-IT') {
     const recapT = getRecapTranslation(language);
     const isEnglish = language.startsWith('en');
+    const langKeyword = recapT.langKeyword ? ` ${recapT.langKeyword}` : '';
 
-    // Step 1: Localized with provider
+    // Step 1: Localized with provider + language keyword
     if (provider) {
-        const query1 = `${seriesName} ${recapT.recap} ${recapT.season} ${season} ${provider}`;
+        const query1 = `${seriesName} ${recapT.recap} ${recapT.season} ${season} ${provider}${langKeyword}`;
         const result1 = await searchYouTubeScraping(query1, language);
         if (result1) {
             console.log(`[RecapProvider] ✓ Found (step 1)`);
@@ -202,8 +206,8 @@ async function searchRecapVideo(seriesName, season, provider, language = 'it-IT'
         }
     }
 
-    // Step 2: Localized without provider
-    const query2 = `${seriesName} ${recapT.recap} ${recapT.season} ${season}`;
+    // Step 2: Localized without provider + language keyword
+    const query2 = `${seriesName} ${recapT.recap} ${recapT.season} ${season}${langKeyword}`;
     const result2 = await searchYouTubeScraping(query2, language);
     if (result2) {
         console.log(`[RecapProvider] ✓ Found (step 2)`);
