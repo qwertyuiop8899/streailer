@@ -28,7 +28,7 @@ const SUPPORTED_LANGUAGES = [
 // Manifest definition
 const manifest = {
     id: 'org.streailer.trailer',
-    version: '1.2.0',
+    version: '1.3.1',
     name: 'Streailer - Trailer Provider',
     description: 'Trailer provider with multi-language support. TMDB → YouTube fallback → TMDB en-US. Season recaps for TV series.',
     logo: 'https://i.imgur.com/F7dxBVt.png',
@@ -85,6 +85,7 @@ builder.defineStreamHandler(async ({ type, id, config }) => {
     let imdbId = null;
     let tmdbId = null;
     let season = undefined;
+    let episode = undefined;
 
     // Detect ID type
     if (id.startsWith('tmdb:')) {
@@ -93,11 +94,17 @@ builder.defineStreamHandler(async ({ type, id, config }) => {
         if (parts.length >= 3) {
             season = parseInt(parts[2], 10);
         }
+        if (parts.length >= 4) {
+            episode = parseInt(parts[3], 10);
+        }
     } else if (id.startsWith('tt')) {
         const parts = id.split(':');
         imdbId = parts[0];
         if (parts.length >= 2) {
             season = parseInt(parts[1], 10);
+        }
+        if (parts.length >= 3) {
+            episode = parseInt(parts[2], 10);
         }
     } else if (/^\d+/.test(id)) {
         const parts = id.split(':');
@@ -105,8 +112,17 @@ builder.defineStreamHandler(async ({ type, id, config }) => {
         if (parts.length >= 2) {
             season = parseInt(parts[1], 10);
         }
+        if (parts.length >= 3) {
+            episode = parseInt(parts[2], 10);
+        }
     } else {
         console.log(`[Streailer] Unknown ID format: ${id}`);
+        return { streams: [] };
+    }
+
+    // For series: only show streams on episode 1 of each season
+    if (type === 'series' && episode !== undefined && episode !== 1) {
+        console.log(`[Streailer] Episode ${episode} - skipping (only episode 1 shows trailer/recap)`);
         return { streams: [] };
     }
 
@@ -125,24 +141,26 @@ builder.defineStreamHandler(async ({ type, id, config }) => {
         // Get recap streams for TV series if enabled
         let recapStreams = [];
         if (showRecap && type === 'series' && season !== undefined && season >= 2 && (tmdbId || imdbId)) {
-            // Convert IMDb to TMDB if needed
+            // Convert IMDb to TMDB if needed and get series name
             let recapTmdbId = tmdbId;
-            if (!recapTmdbId && imdbId) {
+            let seriesName = '';
+
+            if (imdbId) {
                 const converted = await imdbToTmdbWithLanguage(imdbId, 'series', language);
                 if (converted) {
-                    recapTmdbId = converted.id;
-                    console.log(`[Streailer] Converted ${imdbId} to TMDB ID: ${recapTmdbId}`);
+                    recapTmdbId = recapTmdbId || converted.id;
+                    seriesName = converted.title; // Use TMDB title (clean, localized)
+                    console.log(`[Streailer] TMDB info: ID=${recapTmdbId}, Title="${seriesName}"`);
                 }
             }
 
-            // Get series name from first trailer stream title
-            let seriesName = '';
-            if (trailerStreams.length > 0 && trailerStreams[0].title) {
-                // Extract series name from trailer title (remove season part)
-                seriesName = trailerStreams[0].title.split(/\s+(Season|Stagione|Temporada|Staffel|Saison|Сезон|シーズン|सीज़न|சீசன்|Sezon)/i)[0].trim();
+            // Fallback: try to extract from trailer title if TMDB failed
+            if (!seriesName && trailerStreams.length > 0 && trailerStreams[0].title) {
+                seriesName = trailerStreams[0].title.split(/\s+(Season|Stagione|Temporada|Staffel|Saison|Сезон|シーズン|सीज़न|சீசன்|Sezon|S\.\d|S\d)/i)[0].trim();
+                console.log(`[Streailer] Fallback series name from trailer: "${seriesName}"`);
             }
 
-            if (seriesName) {
+            if (seriesName && recapTmdbId) {
                 recapStreams = await getRecapStreams(recapTmdbId, seriesName, season, language, useExternalLink);
             }
         }
