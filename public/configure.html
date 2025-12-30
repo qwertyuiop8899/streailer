@@ -651,6 +651,17 @@
                 </div>
             </div>
 
+            <div class="form-group">
+                <label class="form-label">📝 Only Recaps</label>
+                <div class="toggle-container">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="onlyRecapsToggle">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span id="onlyRecapsDescription" class="toggle-description">Show only recaps, no trailers</span>
+                </div>
+            </div>
+
             <div class="button-group">
                 <a href="#" id="installBtn" class="btn btn-primary">
                     <span class="btn-icon">📺</span>
@@ -681,6 +692,7 @@
         const languageSelect = document.getElementById('languageSelect');
         const externalLinkToggle = document.getElementById('externalLinkToggle');
         const recapToggle = document.getElementById('recapToggle');
+        const onlyRecapsToggle = document.getElementById('onlyRecapsToggle');
         const installBtn = document.getElementById('installBtn');
         const copyBtn = document.getElementById('copyBtn');
         const toast = document.getElementById('toast');
@@ -721,10 +733,28 @@
             'tr-TR': 'Önceki sezonların özetlerini göster (Sezon 2+)'
         };
 
+        // Translations for the only recaps toggle description
+        const onlyRecapsTranslations = {
+            'en-US': 'Show only recaps, hide trailers',
+            'es-MX': 'Mostrar solo resúmenes, ocultar tráilers',
+            'pt-BR': 'Mostrar apenas recaps, esconder trailers',
+            'pt-PT': 'Mostrar apenas recaps, esconder trailers',
+            'de-DE': 'Nur Recaps anzeigen, Trailer ausblenden',
+            'fr-FR': 'Afficher uniquement les récaps, masquer les bandes-annonces',
+            'es-ES': 'Mostrar solo resúmenes, ocultar tráilers',
+            'it-IT': 'Mostra solo i recap, nascondi i trailer',
+            'ru-RU': 'Показывать только обзоры, скрыть трейлеры',
+            'ja-JP': 'リキャップのみ表示、トレーラー非表示',
+            'hi-IN': 'केवल रिकैप दिखाएं, ट्रेलर छुपाएं',
+            'ta-IN': 'ரீகேப்களை மட்டும் காண்பி, டிரெய்லர்களை மறை',
+            'tr-TR': 'Sadece özetleri göster, fragmanları gizle'
+        };
+
         function updateToggleDescription() {
             const lang = languageSelect.value;
             toggleDescription.textContent = translations[lang] || translations['en-US'];
             recapDescription.textContent = recapTranslations[lang] || recapTranslations['en-US'];
+            document.getElementById('onlyRecapsDescription').textContent = onlyRecapsTranslations[lang] || onlyRecapsTranslations['en-US'];
         }
 
         function getBaseUrl() {
@@ -737,11 +767,13 @@
             const language = languageSelect.value;
             const externalLink = externalLinkToggle.checked;
             const showRecap = recapToggle.checked;
+            const onlyRecaps = onlyRecapsToggle.checked;
             const baseUrl = getBaseUrl();
             const config = JSON.stringify({
                 language: language,
                 externalLink: externalLink,
-                showRecap: showRecap
+                showRecap: showRecap,
+                onlyRecaps: onlyRecaps
             });
             return `${baseUrl}/${encodeURIComponent(config)}/manifest.json`;
         }
@@ -769,6 +801,7 @@
         });
         externalLinkToggle.addEventListener('change', updateInstallLink);
         recapToggle.addEventListener('change', updateInstallLink);
+        onlyRecapsToggle.addEventListener('change', updateInstallLink);
 
         copyBtn.addEventListener('click', async () => {
             const manifestUrl = getManifestUrl();
