@@ -5,6 +5,7 @@ const express = require('express');
 const path = require('path');
 const { getTrailerStreams, isTrailerProviderAvailable, imdbToTmdbWithLanguage } = require('./trailerProvider');
 const { getRecapStreams } = require('./recapProvider');
+const { kitsuToTmdb } = require('./kitsuProvider');
 
 // Supported languages - Tier 1 (Dubbing-centric) + Tier 2 (Strategic Expansion)
 const SUPPORTED_LANGUAGES = [
@@ -28,14 +29,14 @@ const SUPPORTED_LANGUAGES = [
 // Manifest definition
 const manifest = {
     id: 'org.streailer.trailer',
-    version: '1.3.1',
+    version: '1.4.0',
     name: 'Streailer - Trailer Provider',
     description: 'Trailer provider with multi-language support. TMDB → YouTube fallback → TMDB en-US. Season recaps for TV series.',
     logo: 'https://i.imgur.com/F7dxBVt.png',
     background: 'https://i.imgur.com/rEN6X72.jpeg',
     resources: ['stream'],
     types: ['movie', 'series'],
-    idPrefixes: ['tt', 'tmdb:'],  // Supports both IMDb (tt...) and TMDB (tmdb:12345)
+    idPrefixes: ['tt', 'tmdb:', 'kitsu:'],  // Supports IMDb (tt...), TMDB (tmdb:), and Kitsu (kitsu:)
     catalogs: [],
     behaviorHints: {
         configurable: true
@@ -60,6 +61,12 @@ const manifest = {
             type: 'checkbox',
             title: 'Season Recaps (TV Series)',
             default: false
+        },
+        {
+            key: 'onlyRecaps',
+            type: 'checkbox',
+            title: 'Only Recaps (No Trailers)',
+            default: false
         }
     ]
 };
@@ -80,6 +87,7 @@ builder.defineStreamHandler(async ({ type, id, config }) => {
     const language = config?.language || 'it-IT';
     const useExternalLink = config?.externalLink === 'true' || config?.externalLink === true;
     const showRecap = config?.showRecap === 'true' || config?.showRecap === true;
+    const onlyRecaps = config?.onlyRecaps === 'true' || config?.onlyRecaps === true;
 
     // Parse ID (supports IMDb tt..., TMDB tmdb:12345, or direct TMDB numeric)
     let imdbId = null;
@@ -114,6 +122,26 @@ builder.defineStreamHandler(async ({ type, id, config }) => {
         }
         if (parts.length >= 3) {
             episode = parseInt(parts[2], 10);
+        }
+    } else if (id.startsWith('kitsu:')) {
+        // Kitsu anime ID - convert to TMDB
+        const parts = id.split(':');
+        const kitsuId = parts[1];
+        if (parts.length >= 3) {
+            season = parseInt(parts[2], 10);
+        }
+        if (parts.length >= 4) {
+            episode = parseInt(parts[3], 10);
+        }
+
+        console.log(`[Streailer] Converting Kitsu ID: ${kitsuId}`);
+        const kitsuResult = await kitsuToTmdb(kitsuId, language);
+        if (kitsuResult) {
+            tmdbId = kitsuResult.tmdbId;
+            console.log(`[Streailer] Kitsu ${kitsuId} → TMDB ${tmdbId} ("${kitsuResult.title}")`);
+        } else {
+            console.log(`[Streailer] Could not convert Kitsu ID: ${kitsuId}`);
+            return { streams: [] };
         }
     } else {
         console.log(`[Streailer] Unknown ID format: ${id}`);
@@ -165,10 +193,18 @@ builder.defineStreamHandler(async ({ type, id, config }) => {
             }
         }
 
-        // Combine: trailer first, then recaps
-        const streams = [...trailerStreams, ...recapStreams];
+        // Combine streams based on config
+        let streams;
+        if (onlyRecaps && recapStreams.length > 0) {
+            // Only recaps mode: no trailers
+            streams = recapStreams;
+            console.log(`[Streailer] Returning ${streams.length} stream(s) (recaps only)`);
+        } else {
+            // Normal mode: trailer first, then recaps
+            streams = [...trailerStreams, ...recapStreams];
+            console.log(`[Streailer] Returning ${streams.length} stream(s) (${trailerStreams.length} trailer + ${recapStreams.length} recaps)`);
+        }
 
-        console.log(`[Streailer] Returning ${streams.length} stream(s) (${trailerStreams.length} trailer + ${recapStreams.length} recaps)`);
         return { streams };
     } catch (error) {
         console.error('[Streailer] Error fetching streams:', error);
