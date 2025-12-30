@@ -295,8 +295,8 @@ async function getRecapStreams(tmdbId, seriesName, currentSeason, language = 'it
         streams.push(recapStream);
     }
 
-    // Get recaps for seasons 1 to (currentSeason - 2)
-    for (let s = 1; s < previousSeason; s++) {
+    // Get recaps for seasons (currentSeason - 2) down to 1 (closest to farthest)
+    for (let s = previousSeason - 1; s >= 1; s--) {
         console.log(`[RecapProvider] Searching recap for Season ${s}`);
         const recap = await searchRecapVideo(seriesName, s, provider, language);
         if (recap) {
