@@ -327,8 +327,53 @@ async function getRecapStreams(tmdbId, seriesName, currentSeason, language = 'it
     return streams;
 }
 
+/**
+ * Search for a generic recap video (for Kitsu anime where seasons are separate entries)
+ * Returns a single recap stream with spoiler warning
+ */
+async function searchGenericRecap(seriesName, language = 'it-IT', useExternalLink = false) {
+    console.log(`[RecapProvider] Searching generic recap for "${seriesName}"`);
+
+    const recapT = getRecapTranslation(language);
+    const langKeyword = recapT.langKeyword ? ` ${recapT.langKeyword}` : '';
+
+    // Search without season number
+    const query = `${seriesName} ${recapT.recap}${langKeyword}`;
+    const result = await searchYouTubeScraping(query, language);
+
+    if (!result) {
+        console.log(`[RecapProvider] ✗ No generic recap found for "${seriesName}"`);
+        return null;
+    }
+
+    console.log(`[RecapProvider] ✓ Generic recap found: "${result.title}"`);
+
+    // Create stream with spoiler warning
+    const recapStreamName = useExternalLink
+        ? `🔗 ⚠️ Recap (Spoiler Alert!)`
+        : `⚠️ Recap (Spoiler Alert!)`;
+
+    const recapStream = {
+        name: recapStreamName,
+        title: result.title,
+        behaviorHints: {
+            notWebReady: true,
+            bingeGroup: 'recap'
+        }
+    };
+
+    if (useExternalLink) {
+        recapStream.externalUrl = `https://www.youtube.com/watch?v=${result.ytId}`;
+    } else {
+        recapStream.ytId = result.ytId;
+    }
+
+    return recapStream;
+}
+
 module.exports = {
     getRecapStreams,
     getWatchProviders,
-    getRecapTranslation
+    getRecapTranslation,
+    searchGenericRecap
 };
