@@ -261,7 +261,13 @@ app.use((req, res, next) => {
     if (req.path.endsWith('/manifest.json')) {
         res.setHeader('Content-Type', 'application/json');
         res.setHeader('Access-Control-Allow-Origin', '*');
-        return res.json(manifest);
+        // Ensure we send a clean copy of the manifest with the config
+        const manifestToSend = { ...manifest };
+        // Explicitly ensure stremioAddonsConfig is present if defined
+        if (manifest.stremioAddonsConfig) {
+            manifestToSend.stremioAddonsConfig = manifest.stremioAddonsConfig;
+        }
+        return res.json(manifestToSend);
     }
     next();
 });
