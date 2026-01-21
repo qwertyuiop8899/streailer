@@ -68,7 +68,11 @@ const manifest = {
             title: 'Only Recaps (No Trailers)',
             default: false
         }
-    ]
+    ],
+    stremioAddonsConfig: {
+        "issuer": "https://stremio-addons.net",
+        "signature": "eyJhbGciOiJkaXIiLCJlbmMiOiJBMTI4Q0JDLUhTMjU2In0..MOCSVn-poAicpFB3yI8QcQ.aEx1Ql37vvzQQHVyihr5z6_LJYCWZYzfFTDStX-icgNnh6YT85Qoy9YqfMyoDSc4-tUxCtKuZ_yEzzr0nXxW4t5TEAM1wMBbbqqE_L22-iV8ErpMNmsDZWESVt6rqlJD._aRFyhZLN7gQAVhy9dKadA"
+    }
 };
 
 // Create addon builder
@@ -209,8 +213,8 @@ builder.defineStreamHandler(async ({ type, id, config }) => {
 
         // Combine streams based on config
         let streams;
-        if (onlyRecaps && recapStreams.length > 0) {
-            // Only recaps mode: no trailers
+        if (onlyRecaps) {
+            // Only recaps mode: no trailers, even if no recaps are found
             streams = recapStreams;
             console.log(`[Streailer] Returning ${streams.length} stream(s) (recaps only)`);
         } else {
