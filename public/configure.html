@@ -205,7 +205,7 @@
         }
 
         .container {
-            max-width: 480px;
+            max-width: 900px;
             width: 100%;
             position: relative;
             z-index: 1;
@@ -578,6 +578,78 @@
                 font-size: 14px;
             }
         }
+
+        /* Settings Grid */
+        .settings-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+        }
+
+        @media (min-width: 768px) {
+            .settings-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .form-group.full-width {
+                grid-column: span 2;
+            }
+        }
+
+        /* Footer Section */
+        .footer-section {
+            margin-top: 32px;
+            padding-top: 24px;
+            border-top: 1px solid rgba(168, 85, 247, 0.2);
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .footer-logo {
+            height: 40px;
+            width: auto;
+            object-fit: contain;
+        }
+
+        .footer-text {
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.6);
+            line-height: 1.5;
+        }
+
+        .footer-link {
+            color: var(--neon-cyan);
+            text-decoration: none;
+            font-weight: 600;
+            transition: color 0.3s;
+        }
+
+        .footer-link:hover {
+            color: var(--neon-purple);
+            text-decoration: underline;
+        }
+
+        /* GitHub Corner */
+        .github-corner {
+            margin-top: 16px;
+            opacity: 0.7;
+            transition: all 0.3s ease;
+            display: inline-flex;
+        }
+
+        .github-corner:hover {
+            opacity: 1;
+            transform: scale(1.1);
+        }
+
+        .github-icon {
+            width: 28px;
+            height: 28px;
+            fill: rgba(255, 255, 255, 0.8);
+        }
     </style>
 </head>
 
@@ -606,62 +678,64 @@
                 <p class="subtitle">Multi-language Trailer Provider</p>
             </div>
 
-            <div class="form-group">
-                <label class="form-label">🌍 Select Language</label>
-                <div class="select-wrapper">
-                    <select id="languageSelect">
-                        <option value="en-US">🇺🇸 English (US)</option>
-                        <option value="es-MX">🇲🇽 Español (Latinoamérica)</option>
-                        <option value="pt-BR">🇧🇷 Português (Brasil)</option>
-                        <option value="pt-PT">🇵🇹 Português (Portugal)</option>
-                        <option value="de-DE">🇩🇪 Deutsch</option>
-                        <option value="fr-FR">🇫🇷 Français</option>
-                        <option value="es-ES">🇪🇸 Español (España)</option>
-                        <option value="it-IT">🇮🇹 Italiano</option>
-                        <option value="ru-RU">🇷🇺 Русский</option>
-                        <option value="ja-JP">🇯🇵 日本語</option>
-                        <option value="hi-IN">🇮🇳 हिन्दी</option>
-                        <option value="ta-IN">🇮🇳 தமிழ்</option>
-                        <option value="tr-TR">🇹🇷 Türkçe</option>
-                        <option value="pl-PL">🇵🇱 Polski</option>
-                        <option value="nl-NL">🇳🇱 Nederlands</option>
-                        <option value="hu-HU">🇭🇺 Magyar</option>
-                    </select>
+            <div class="settings-grid">
+                <div class="form-group full-width">
+                    <label class="form-label">🌍 Select Language</label>
+                    <div class="select-wrapper">
+                        <select id="languageSelect">
+                            <option value="en-US">🇺🇸 English (US)</option>
+                            <option value="es-MX">🇲🇽 Español (Latinoamérica)</option>
+                            <option value="pt-BR">🇧🇷 Português (Brasil)</option>
+                            <option value="pt-PT">🇵🇹 Português (Portugal)</option>
+                            <option value="de-DE">🇩🇪 Deutsch</option>
+                            <option value="fr-FR">🇫🇷 Français</option>
+                            <option value="es-ES">🇪🇸 Español (España)</option>
+                            <option value="it-IT">🇮🇹 Italiano</option>
+                            <option value="ru-RU">🇷🇺 Русский</option>
+                            <option value="ja-JP">🇯🇵 日本語</option>
+                            <option value="hi-IN">🇮🇳 हिन्दी</option>
+                            <option value="ta-IN">🇮🇳 தமிழ்</option>
+                            <option value="tr-TR">🇹🇷 Türkçe</option>
+                            <option value="pl-PL">🇵🇱 Polski</option>
+                            <option value="nl-NL">🇳🇱 Nederlands</option>
+                            <option value="hu-HU">🇭🇺 Magyar</option>
+                        </select>
+                    </div>
                 </div>
-            </div>
 
-            <div class="form-group">
-                <label class="form-label">🔗 External Link</label>
-                <div class="toggle-container">
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="externalLinkToggle">
-                        <span class="toggle-slider"></span>
-                    </label>
-                    <span id="toggleDescription" class="toggle-description">Play trailers in the external YouTube
-                        app</span>
+                <div class="form-group">
+                    <label class="form-label">🔗 External Link</label>
+                    <div class="toggle-container">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="externalLinkToggle">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span id="toggleDescription" class="toggle-description">Play trailers in the external YouTube
+                            app</span>
+                    </div>
                 </div>
-            </div>
 
-            <div class="form-group">
-                <label class="form-label">📺 Season Recaps</label>
-                <div class="toggle-container">
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="recapToggle">
-                        <span class="toggle-slider"></span>
-                    </label>
-                    <span id="recapDescription" class="toggle-description">Show recap videos for previous seasons
-                        (Season 2+)</span>
+                <div class="form-group">
+                    <label class="form-label">📺 Season Recaps</label>
+                    <div class="toggle-container">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="recapToggle">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span id="recapDescription" class="toggle-description">Show recap videos for previous seasons
+                            (Season 2+)</span>
+                    </div>
                 </div>
-            </div>
 
-            <div class="form-group">
-                <label class="form-label">📝 Only Recaps</label>
-                <div class="toggle-container">
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="onlyRecapsToggle">
-                        <span class="toggle-slider"></span>
-                    </label>
-                    <span id="onlyRecapsDescription" class="toggle-description">Show only recaps, no trailers</span>
+                <div class="form-group">
+                    <label class="form-label">📝 Only Recaps</label>
+                    <div class="toggle-container">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="onlyRecapsToggle">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span id="onlyRecapsDescription" class="toggle-description">Show only recaps, no trailers</span>
+                    </div>
                 </div>
             </div>
 
@@ -685,6 +759,25 @@
                     <span class="flow-arrow">→</span>
                     <span class="flow-step">🇬🇧 TMDB US</span>
                 </div>
+            </div>
+
+            <div class="footer-section">
+                <img src="https://store.elfhosted.com/wp-content/uploads/2024/11/logo.svg" alt="ElfHosted Logo"
+                    class="footer-logo">
+                <p class="footer-text">
+                    Hosting infrastructure donated by <a href="https://store.elfhosted.com/" target="_blank"
+                        class="footer-link">ElfHosted</a> ❤️<br>
+                    See the <a href="https://stremio-addons-guide.elfhosted.com/" target="_blank"
+                        class="footer-link">ElfHosted Stremio Addons Guide</a> for more addons
+                </p>
+                <a href="https://github.com/qwertyuiop8899/streailer" target="_blank" class="github-corner"
+                    aria-label="View on GitHub">
+                    <svg class="github-icon" viewBox="0 0 16 16" version="1.1" aria-hidden="true">
+                        <path fill-rule="evenodd"
+                            d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z">
+                        </path>
+                    </svg>
+                </a>
             </div>
         </div>
     </div>
