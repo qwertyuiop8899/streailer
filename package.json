@@ -1,6 +1,6 @@
 {
   "name": "streailer",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Stremio Trailer Addon with multi-language support",
   "main": "index.js",
   "scripts": {
