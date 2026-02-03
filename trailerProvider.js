@@ -9,6 +9,17 @@ const fetch = require('node-fetch');
 // TMDB API configuration
 const TMDB_BASE = 'https://api.themoviedb.org/3';
 const TMDB_KEY = process.env.TMDB_KEY;
+const DEFAULT_TIMEOUT_MS = 8000;
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = DEFAULT_TIMEOUT_MS) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        return await fetch(url, { ...options, signal: controller.signal });
+    } finally {
+        clearTimeout(timeout);
+    }
+}
 
 /**
  * Multi-language translations for trailer provider
@@ -291,7 +302,7 @@ async function imdbToTmdbWithLanguage(imdbId, type, language) {
 
     try {
         const url = `${TMDB_BASE}/find/${imdbId}?api_key=${TMDB_KEY}&external_source=imdb_id&language=${language}`;
-        const response = await fetch(url);
+        const response = await fetchWithTimeout(url);
         const data = await response.json();
 
         const results = type === 'series' ? data.tv_results : data.movie_results;
@@ -321,7 +332,7 @@ async function fetchTMDBVideos(tmdbId, type, language, season) {
             const mediaType = type === 'series' ? 'tv' : 'movie';
             url = `${TMDB_BASE}/${mediaType}/${tmdbId}/videos?api_key=${TMDB_KEY}&language=${language}`;
         }
-        const response = await fetch(url);
+        const response = await fetchWithTimeout(url);
         const data = await response.json();
 
         return data.results || [];
@@ -389,7 +400,7 @@ async function searchYouTubeScraping(query) {
 
         console.log(`[TrailerProvider] YouTube scraping search: ${query}`);
 
-        const response = await fetch(url, {
+        const response = await fetchWithTimeout(url, {
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
             }
@@ -502,7 +513,7 @@ async function getTrailerStreams(type, imdbId, contentName, season, tmdbId, lang
                 const mediaType = type === 'series' ? 'tv' : 'movie';
                 try {
                     const url = `${TMDB_BASE}/${mediaType}/${tmdbId}?api_key=${TMDB_KEY}&language=${language}`;
-                    const response = await fetch(url);
+                    const response = await fetchWithTimeout(url);
                     const data = await response.json();
                     contentTitle = data.title || data.name || '';
                 } catch (e) {

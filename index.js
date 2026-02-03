@@ -9,6 +9,11 @@ const { getTrailerStreams, isTrailerProviderAvailable, imdbToTmdbWithLanguage } 
 const { getRecapStreams } = require('./recapProvider');
 const { kitsuToTmdb } = require('./kitsuProvider');
 
+const MAX_SEASON = 50;
+const MAX_CONCURRENT_STREAMS = Number(process.env.MAX_CONCURRENT_STREAMS) || 20;
+
+let activeStreamRequests = 0;
+
 // Supported languages - Tier 1 (Dubbing-centric) + Tier 2 (Strategic Expansion)
 const SUPPORTED_LANGUAGES = [
     // Tier 1: Indispensabili (Mercati doppiaggio-centrici)
@@ -85,153 +90,173 @@ const builder = new addonBuilder(manifest);
 
 // Stream handler
 builder.defineStreamHandler(async ({ type, id, config }) => {
-    console.log(`[Streailer] Stream request: type=${type}, id=${id}, config=${JSON.stringify(config)}`);
-
-    if (!isTrailerProviderAvailable()) {
-        console.warn('[Streailer] TMDB API key not configured');
+    if (activeStreamRequests >= MAX_CONCURRENT_STREAMS) {
+        console.warn('[Streailer] Too many concurrent requests, rejecting');
         return { streams: [] };
     }
 
-    // Get config options
-    const language = config?.language || 'it-IT';
-    const useExternalLink = config?.externalLink === 'true' || config?.externalLink === true;
-    const showRecap = config?.showRecap === 'true' || config?.showRecap === true;
-    const onlyRecaps = config?.onlyRecaps === 'true' || config?.onlyRecaps === true;
-
-    // Parse ID (supports IMDb tt..., TMDB tmdb:12345, or direct TMDB numeric)
-    let imdbId = null;
-    let tmdbId = null;
-    let season = undefined;
-    let episode = undefined;
-    let isKitsu = false;
-    let kitsuTitle = ''; // Store Kitsu title for recap search
-
-    // Detect ID type
-    if (id.startsWith('tmdb:')) {
-        const parts = id.split(':');
-        tmdbId = parseInt(parts[1], 10);
-        if (parts.length >= 3) {
-            season = parseInt(parts[2], 10);
-        }
-        if (parts.length >= 4) {
-            episode = parseInt(parts[3], 10);
-        }
-    } else if (id.startsWith('tt')) {
-        const parts = id.split(':');
-        imdbId = parts[0];
-        if (parts.length >= 2) {
-            season = parseInt(parts[1], 10);
-        }
-        if (parts.length >= 3) {
-            episode = parseInt(parts[2], 10);
-        }
-    } else if (/^\d+/.test(id)) {
-        const parts = id.split(':');
-        tmdbId = parseInt(parts[0], 10);
-        if (parts.length >= 2) {
-            season = parseInt(parts[1], 10);
-        }
-        if (parts.length >= 3) {
-            episode = parseInt(parts[2], 10);
-        }
-    } else if (id.startsWith('kitsu:')) {
-        // Kitsu anime ID - convert to TMDB
-        // Kitsu format: kitsu:ID:episode (each season has its own ID)
-        isKitsu = true;
-        const parts = id.split(':');
-        const kitsuId = parts[1];
-        if (parts.length >= 3) {
-            episode = parseInt(parts[2], 10); // Kitsu's second param is episode, not season
-        }
-        // Kitsu doesn't have multi-season structure, so season stays undefined
-
-        console.log(`[Streailer] Converting Kitsu ID: ${kitsuId} (episode: ${episode})`);
-        const kitsuResult = await kitsuToTmdb(kitsuId, language);
-        if (kitsuResult) {
-            tmdbId = kitsuResult.tmdbId;
-            kitsuTitle = kitsuResult.title;
-            console.log(`[Streailer] Kitsu ${kitsuId} → TMDB ${tmdbId} ("${kitsuTitle}")`);
-        } else {
-            console.log(`[Streailer] Could not convert Kitsu ID: ${kitsuId}`);
-            return { streams: [] };
-        }
-    } else {
-        console.log(`[Streailer] Unknown ID format: ${id}`);
-        return { streams: [] };
-    }
-
-    // For series: only show streams on episode 1 of each season (but not for Kitsu - each season has own ID)
-    if (type === 'series' && !isKitsu && episode !== undefined && episode !== 1) {
-        console.log(`[Streailer] Episode ${episode} - skipping (only episode 1 shows trailer/recap)`);
-        return { streams: [] };
-    }
+    activeStreamRequests += 1;
 
     try {
-        // Get trailer streams
-        const trailerStreams = await getTrailerStreams(
-            type === 'series' ? 'series' : 'movie',
-            imdbId,
-            undefined,
-            season,
-            tmdbId,
-            language,
-            useExternalLink
-        );
+        console.log(`[Streailer] Stream request: type=${type}, id=${id}, config=${JSON.stringify(config)}`);
 
-        // Get recap streams for TV series if enabled
-        let recapStreams = [];
+        if (!isTrailerProviderAvailable()) {
+            console.warn('[Streailer] TMDB API key not configured');
+            return { streams: [] };
+        }
 
-        if (showRecap && type === 'series') {
-            if (isKitsu && kitsuTitle) {
-                // Kitsu: search generic recap (each season has own ID, no multi-season structure)
-                console.log(`[Streailer] Kitsu recap search for "${kitsuTitle}"`);
-                const { searchGenericRecap } = require('./recapProvider');
-                const genericRecap = await searchGenericRecap(kitsuTitle, language, useExternalLink);
-                if (genericRecap) {
-                    recapStreams = [genericRecap];
-                }
-            } else if (season !== undefined && season >= 2 && (tmdbId || imdbId)) {
-                // Normal: search season-specific recaps
-                let recapTmdbId = tmdbId;
-                let seriesName = '';
+        // Get config options
+        const language = config?.language || 'it-IT';
+        const useExternalLink = config?.externalLink === 'true' || config?.externalLink === true;
+        const showRecap = config?.showRecap === 'true' || config?.showRecap === true;
+        const onlyRecaps = config?.onlyRecaps === 'true' || config?.onlyRecaps === true;
 
-                if (imdbId) {
-                    const converted = await imdbToTmdbWithLanguage(imdbId, 'series', language);
-                    if (converted) {
-                        recapTmdbId = recapTmdbId || converted.id;
-                        seriesName = converted.title;
-                        console.log(`[Streailer] TMDB info: ID=${recapTmdbId}, Title="${seriesName}"`);
-                    }
-                }
+        // Parse ID (supports IMDb tt..., TMDB tmdb:12345, or direct TMDB numeric)
+        let imdbId = null;
+        let tmdbId = null;
+        let season = undefined;
+        let episode = undefined;
+        let isKitsu = false;
+        let kitsuTitle = ''; // Store Kitsu title for recap search
 
-                // Fallback: try to extract from trailer title if TMDB failed
-                if (!seriesName && trailerStreams.length > 0 && trailerStreams[0].title) {
-                    seriesName = trailerStreams[0].title.split(/\s+(Season|Stagione|Temporada|Staffel|Saison|Сезон|シーズン|सीज़न|சீசன்|Sezon|S\.\d|S\d)/i)[0].trim();
-                    console.log(`[Streailer] Fallback series name from trailer: "${seriesName}"`);
-                }
+        // Detect ID type
+        if (id.startsWith('tmdb:')) {
+            const parts = id.split(':');
+            tmdbId = parseInt(parts[1], 10);
+            if (parts.length >= 3) {
+                season = parseInt(parts[2], 10);
+            }
+            if (parts.length >= 4) {
+                episode = parseInt(parts[3], 10);
+            }
+        } else if (id.startsWith('tt')) {
+            const parts = id.split(':');
+            imdbId = parts[0];
+            if (parts.length >= 2) {
+                season = parseInt(parts[1], 10);
+            }
+            if (parts.length >= 3) {
+                episode = parseInt(parts[2], 10);
+            }
+        } else if (/^\d+/.test(id)) {
+            const parts = id.split(':');
+            tmdbId = parseInt(parts[0], 10);
+            if (parts.length >= 2) {
+                season = parseInt(parts[1], 10);
+            }
+            if (parts.length >= 3) {
+                episode = parseInt(parts[2], 10);
+            }
+        } else if (id.startsWith('kitsu:')) {
+            // Kitsu anime ID - convert to TMDB
+            // Kitsu format: kitsu:ID:episode (each season has its own ID)
+            isKitsu = true;
+            const parts = id.split(':');
+            const kitsuId = parts[1];
+            if (parts.length >= 3) {
+                episode = parseInt(parts[2], 10); // Kitsu's second param is episode, not season
+            }
+            // Kitsu doesn't have multi-season structure, so season stays undefined
 
-                if (seriesName && recapTmdbId) {
-                    recapStreams = await getRecapStreams(recapTmdbId, seriesName, season, language, useExternalLink);
-                }
+            console.log(`[Streailer] Converting Kitsu ID: ${kitsuId} (episode: ${episode})`);
+            const kitsuResult = await kitsuToTmdb(kitsuId, language);
+            if (kitsuResult) {
+                tmdbId = kitsuResult.tmdbId;
+                kitsuTitle = kitsuResult.title;
+                console.log(`[Streailer] Kitsu ${kitsuId} → TMDB ${tmdbId} ("${kitsuTitle}")`);
+            } else {
+                console.log(`[Streailer] Could not convert Kitsu ID: ${kitsuId}`);
+                return { streams: [] };
+            }
+        } else {
+            console.log(`[Streailer] Unknown ID format: ${id}`);
+            return { streams: [] };
+        }
+
+        if (season !== undefined) {
+            if (!Number.isFinite(season) || season < 1) {
+                season = undefined;
+            } else if (season > MAX_SEASON) {
+                console.log(`[Streailer] Season ${season} exceeds max ${MAX_SEASON}, skipping`);
+                return { streams: [] };
             }
         }
 
-        // Combine streams based on config
-        let streams;
-        if (onlyRecaps) {
-            // Only recaps mode: no trailers, even if no recaps are found
-            streams = recapStreams;
-            console.log(`[Streailer] Returning ${streams.length} stream(s) (recaps only)`);
-        } else {
-            // Normal mode: trailer first, then recaps
-            streams = [...trailerStreams, ...recapStreams];
-            console.log(`[Streailer] Returning ${streams.length} stream(s) (${trailerStreams.length} trailer + ${recapStreams.length} recaps)`);
+        // For series: only show streams on episode 1 of each season (but not for Kitsu - each season has own ID)
+        if (type === 'series' && !isKitsu && episode !== undefined && episode !== 1) {
+            console.log(`[Streailer] Episode ${episode} - skipping (only episode 1 shows trailer/recap)`);
+            return { streams: [] };
         }
 
-        return { streams };
-    } catch (error) {
-        console.error('[Streailer] Error fetching streams:', error);
-        return { streams: [] };
+        try {
+            // Get trailer streams
+            const trailerStreams = await getTrailerStreams(
+                type === 'series' ? 'series' : 'movie',
+                imdbId,
+                undefined,
+                season,
+                tmdbId,
+                language,
+                useExternalLink
+            );
+
+            // Get recap streams for TV series if enabled
+            let recapStreams = [];
+
+            if (showRecap && type === 'series') {
+                if (isKitsu && kitsuTitle) {
+                    // Kitsu: search generic recap (each season has own ID, no multi-season structure)
+                    console.log(`[Streailer] Kitsu recap search for "${kitsuTitle}"`);
+                    const { searchGenericRecap } = require('./recapProvider');
+                    const genericRecap = await searchGenericRecap(kitsuTitle, language, useExternalLink);
+                    if (genericRecap) {
+                        recapStreams = [genericRecap];
+                    }
+                } else if (season !== undefined && season >= 2 && (tmdbId || imdbId)) {
+                    // Normal: search season-specific recaps
+                    let recapTmdbId = tmdbId;
+                    let seriesName = '';
+
+                    if (imdbId) {
+                        const converted = await imdbToTmdbWithLanguage(imdbId, 'series', language);
+                        if (converted) {
+                            recapTmdbId = recapTmdbId || converted.id;
+                            seriesName = converted.title;
+                            console.log(`[Streailer] TMDB info: ID=${recapTmdbId}, Title="${seriesName}"`);
+                        }
+                    }
+
+                    // Fallback: try to extract from trailer title if TMDB failed
+                    if (!seriesName && trailerStreams.length > 0 && trailerStreams[0].title) {
+                        seriesName = trailerStreams[0].title.split(/\s+(Season|Stagione|Temporada|Staffel|Saison|Сезон|シーズン|सीज़न|சீசன்|Sezon|S\.\d|S\d)/i)[0].trim();
+                        console.log(`[Streailer] Fallback series name from trailer: "${seriesName}"`);
+                    }
+
+                    if (seriesName && recapTmdbId) {
+                        recapStreams = await getRecapStreams(recapTmdbId, seriesName, season, language, useExternalLink);
+                    }
+                }
+            }
+
+            // Combine streams based on config
+            let streams;
+            if (onlyRecaps) {
+                // Only recaps mode: no trailers, even if no recaps are found
+                streams = recapStreams;
+                console.log(`[Streailer] Returning ${streams.length} stream(s) (recaps only)`);
+            } else {
+                // Normal mode: trailer first, then recaps
+                streams = [...trailerStreams, ...recapStreams];
+                console.log(`[Streailer] Returning ${streams.length} stream(s) (${trailerStreams.length} trailer + ${recapStreams.length} recaps)`);
+            }
+
+            return { streams };
+        } catch (error) {
+            console.error('[Streailer] Error fetching streams:', error);
+            return { streams: [] };
+        }
+    } finally {
+        activeStreamRequests = Math.max(0, activeStreamRequests - 1);
     }
 });
 
