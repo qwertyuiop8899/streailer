@@ -228,6 +228,54 @@ const TRANSLATIONS = {
             10: ['10', 'on', 'onuncu', 'tenth', 'ten'],
         }
     },
+    'pl-PL': {
+        trailer: 'zwiastun polski',
+        season: 'Sezon',
+        numberWords: {
+            1: ['1', 'jeden', 'pierwszy', 'first', 'one'],
+            2: ['2', 'dwa', 'drugi', 'second', 'two'],
+            3: ['3', 'trzy', 'trzeci', 'third', 'three'],
+            4: ['4', 'cztery', 'czwarty', 'fourth', 'four'],
+            5: ['5', 'pięć', 'piąty', 'fifth', 'five'],
+            6: ['6', 'sześć', 'szósty', 'sixth', 'six'],
+            7: ['7', 'siedem', 'siódmy', 'seventh', 'seven'],
+            8: ['8', 'osiem', 'ósmy', 'eighth', 'eight'],
+            9: ['9', 'dziewięć', 'dziewiąty', 'ninth', 'nine'],
+            10: ['10', 'dziesięć', 'dziesiąty', 'tenth', 'ten'],
+        }
+    },
+    'nl-NL': {
+        trailer: 'trailer nederlands',
+        season: 'Seizoen',
+        numberWords: {
+            1: ['1', 'een', 'eerste', 'first', 'one'],
+            2: ['2', 'twee', 'tweede', 'second', 'two'],
+            3: ['3', 'drie', 'derde', 'third', 'three'],
+            4: ['4', 'vier', 'vierde', 'fourth', 'four'],
+            5: ['5', 'vijf', 'vijfde', 'fifth', 'five'],
+            6: ['6', 'zes', 'zesde', 'sixth', 'six'],
+            7: ['7', 'zeven', 'zevende', 'seventh', 'seven'],
+            8: ['8', 'acht', 'achtste', 'eighth', 'eight'],
+            9: ['9', 'negen', 'negende', 'ninth', 'nine'],
+            10: ['10', 'tien', 'tiende', 'tenth', 'ten'],
+        }
+    },
+    'hu-HU': {
+        trailer: 'előzetes magyar',
+        season: 'Évad',
+        numberWords: {
+            1: ['1', 'egy', 'első', 'first', 'one'],
+            2: ['2', 'kettő', 'második', 'second', 'two'],
+            3: ['3', 'három', 'harmadik', 'third', 'three'],
+            4: ['4', 'négy', 'negyedik', 'fourth', 'four'],
+            5: ['5', 'öt', 'ötödik', 'fifth', 'five'],
+            6: ['6', 'hat', 'hatodik', 'sixth', 'six'],
+            7: ['7', 'hét', 'hetedik', 'seventh', 'seven'],
+            8: ['8', 'nyolc', 'nyolcadik', 'eighth', 'eight'],
+            9: ['9', 'kilenc', 'kilencedik', 'ninth', 'nine'],
+            10: ['10', 'tíz', 'tizedik', 'tenth', 'ten'],
+        }
+    },
 };
 
 // Helper to get translation with fallback to English
