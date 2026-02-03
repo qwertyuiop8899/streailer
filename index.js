@@ -34,8 +34,8 @@ const SUPPORTED_LANGUAGES = [
 // Manifest definition
 const manifest = {
     id: 'org.streailer.trailer',
-    version: '1.4.0',
-    name: 'Streailer - Trailer Provider',
+    version: '1.5.0',
+    name: 'Streailer | Elfhosted',
     description: 'Trailer provider with multi-language support. TMDB → YouTube fallback → TMDB en-US. Season recaps for TV series.',
     logo: 'https://i.imgur.com/F7dxBVt.png',
     background: 'https://i.imgur.com/rEN6X72.jpeg',
