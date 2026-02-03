@@ -7,7 +7,7 @@ const fetch = require('node-fetch');
 
 // TMDB API configuration
 const TMDB_BASE = 'https://api.themoviedb.org/3';
-const TMDB_KEY = 'ad0f7351455041d8c9c0d4370a4b5fa5';
+const TMDB_KEY = process.env.TMDB_KEY;
 
 /**
  * Recap translations for YouTube search queries
@@ -72,6 +72,16 @@ const PROVIDER_NAMES = {
  */
 function getRecapTranslation(language) {
     return RECAP_TRANSLATIONS[language] || RECAP_TRANSLATIONS['en-US'];
+}
+
+/**
+ * Validation helper: video title must contain series name
+ */
+function validateVideoTitle(videoTitle, seriesName) {
+    if (!videoTitle || !seriesName) return false;
+    const t = videoTitle.toLowerCase();
+    const s = seriesName.toLowerCase();
+    return t.includes(s);
 }
 
 /**
@@ -200,7 +210,7 @@ async function searchRecapVideo(seriesName, season, provider, language = 'it-IT'
     if (provider) {
         const query1 = `${seriesName} ${recapT.recap} ${recapT.season} ${season} ${provider}${langKeyword}`;
         const result1 = await searchYouTubeScraping(query1, language);
-        if (result1) {
+        if (result1 && validateVideoTitle(result1.title, seriesName)) {
             console.log(`[RecapProvider] ✓ Found (step 1)`);
             return result1;
         }
@@ -209,7 +219,7 @@ async function searchRecapVideo(seriesName, season, provider, language = 'it-IT'
     // Step 2: Localized without provider + language keyword
     const query2 = `${seriesName} ${recapT.recap} ${recapT.season} ${season}${langKeyword}`;
     const result2 = await searchYouTubeScraping(query2, language);
-    if (result2) {
+    if (result2 && validateVideoTitle(result2.title, seriesName)) {
         console.log(`[RecapProvider] ✓ Found (step 2)`);
         return result2;
     }
@@ -224,7 +234,7 @@ async function searchRecapVideo(seriesName, season, provider, language = 'it-IT'
     if (provider) {
         const query3 = `${seriesName} recap Season ${season} ${provider}`;
         const result3 = await searchYouTubeScraping(query3, 'en-US');
-        if (result3) {
+        if (result3 && validateVideoTitle(result3.title, seriesName)) {
             console.log(`[RecapProvider] ✓ Found (step 3 EN)`);
             return result3;
         }
@@ -233,7 +243,7 @@ async function searchRecapVideo(seriesName, season, provider, language = 'it-IT'
     // Step 4: English without provider
     const query4 = `${seriesName} recap Season ${season}`;
     const result4 = await searchYouTubeScraping(query4, 'en-US');
-    if (result4) {
+    if (result4 && validateVideoTitle(result4.title, seriesName)) {
         console.log(`[RecapProvider] ✓ Found (step 4 EN)`);
         return result4;
     }
@@ -248,9 +258,9 @@ async function searchRecapVideo(seriesName, season, provider, language = 'it-IT'
  * Order: Previous season first, then 1, 2, 3... up to (currentSeason - 2)
  */
 async function getRecapStreams(tmdbId, seriesName, currentSeason, language = 'it-IT', useExternalLink = false, imdbId = null) {
-    // Only for season >= 2
-    if (currentSeason < 2) {
-        console.log(`[RecapProvider] Season ${currentSeason} - no recaps needed`);
+    // Only for season >= 2, and max 50 to prevent DoS
+    if (currentSeason < 2 || currentSeason > 50) {
+        console.log(`[RecapProvider] Season ${currentSeason} - outside supported range (2-50)`);
         return [];
     }
 
