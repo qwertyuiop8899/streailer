@@ -6,7 +6,7 @@
 
 const fetch = require('node-fetch');
 
-const TMDB_KEY = 'ad0f7351455041d8c9c0d4370a4b5fa5';
+const TMDB_KEY = process.env.TMDB_KEY;
 const FRIBB_URL = 'https://cdn.jsdelivr.net/gh/Fribb/anime-lists@master/anime-list-full.json';
 const CACHE_TTL = 6 * 60 * 60 * 1000; // 6 hours in milliseconds
 
