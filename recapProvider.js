@@ -26,7 +26,10 @@ const RECAP_TRANSLATIONS = {
     'ja-JP': { recap: 'recap', season: 'シーズン', langKeyword: '日本語' },
     'hi-IN': { recap: 'recap', season: 'सीज़न', langKeyword: 'हिंदी' },
     'ta-IN': { recap: 'recap', season: 'சீசன்', langKeyword: 'தமிழ்' },
-    'tr-TR': { recap: 'özet', season: 'Sezon', langKeyword: 'türkçe' }
+    'tr-TR': { recap: 'özet', season: 'Sezon', langKeyword: 'türkçe' },
+    'pl-PL': { recap: 'skrót', season: 'Sezon', langKeyword: 'polski' },
+    'nl-NL': { recap: 'recap', season: 'Seizoen', langKeyword: 'nederlands' },
+    'hu-HU': { recap: 'összefoglaló', season: 'Évad', langKeyword: 'magyar' }
 };
 
 /**
@@ -45,7 +48,10 @@ const LANGUAGE_TO_COUNTRY = {
     'ja-JP': 'JP',
     'hi-IN': 'IN',
     'ta-IN': 'IN',
-    'tr-TR': 'TR'
+    'tr-TR': 'TR',
+    'pl-PL': 'PL',
+    'nl-NL': 'NL',
+    'hu-HU': 'HU'
 };
 
 /**
