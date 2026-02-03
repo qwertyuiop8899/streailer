@@ -8,6 +8,18 @@ const fetch = require('node-fetch');
 // TMDB API configuration
 const TMDB_BASE = 'https://api.themoviedb.org/3';
 const TMDB_KEY = process.env.TMDB_KEY;
+const DEFAULT_TIMEOUT_MS = 8000;
+const MAX_SEASON = 50;
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = DEFAULT_TIMEOUT_MS) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        return await fetch(url, { ...options, signal: controller.signal });
+    } finally {
+        clearTimeout(timeout);
+    }
+}
 
 /**
  * Recap translations for YouTube search queries
@@ -106,7 +118,7 @@ async function searchYouTubeScraping(query, language = 'en-US') {
 
         console.log(`[RecapProvider] YouTube search: ${query} (gl=${gl}, hl=${hl})`);
 
-        const response = await fetch(url, {
+        const response = await fetchWithTimeout(url, {
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                 'Accept-Language': `${hl}-${gl},${hl};q=0.9,en;q=0.8`,
@@ -172,7 +184,7 @@ async function getWatchProviders(tmdbId, language = 'it-IT') {
 
     try {
         const url = `${TMDB_BASE}/tv/${tmdbId}/watch/providers?api_key=${TMDB_KEY}`;
-        const response = await fetch(url);
+        const response = await fetchWithTimeout(url);
         const data = await response.json();
 
         if (data.results && data.results[country]) {
@@ -264,9 +276,9 @@ async function searchRecapVideo(seriesName, season, provider, language = 'it-IT'
  * Order: Previous season first, then 1, 2, 3... up to (currentSeason - 2)
  */
 async function getRecapStreams(tmdbId, seriesName, currentSeason, language = 'it-IT', useExternalLink = false, imdbId = null) {
-    // Only for season >= 2, and max 50 to prevent DoS
-    if (currentSeason < 2 || currentSeason > 50) {
-        console.log(`[RecapProvider] Season ${currentSeason} - outside supported range (2-50)`);
+    // Only for season >= 2, and max to prevent DoS
+    if (currentSeason < 2 || currentSeason > MAX_SEASON) {
+        console.log(`[RecapProvider] Season ${currentSeason} - outside supported range (2-${MAX_SEASON})`);
         return [];
     }
 

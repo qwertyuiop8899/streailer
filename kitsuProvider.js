@@ -9,6 +9,17 @@ const fetch = require('node-fetch');
 const TMDB_KEY = process.env.TMDB_KEY;
 const FRIBB_URL = 'https://cdn.jsdelivr.net/gh/Fribb/anime-lists@master/anime-list-full.json';
 const CACHE_TTL = 6 * 60 * 60 * 1000; // 6 hours in milliseconds
+const DEFAULT_TIMEOUT_MS = 8000;
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = DEFAULT_TIMEOUT_MS) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        return await fetch(url, { ...options, signal: controller.signal });
+    } finally {
+        clearTimeout(timeout);
+    }
+}
 
 // In-memory cache for Fribb data
 let fribbCache = {
@@ -37,7 +48,7 @@ async function loadFribbData() {
     console.log('[KitsuProvider] Downloading Fribb anime-lists...');
     fribbCache.loading = (async () => {
         try {
-            const response = await fetch(FRIBB_URL, {
+            const response = await fetchWithTimeout(FRIBB_URL, {
                 headers: { 'User-Agent': 'Streailer/1.0' }
             });
 
@@ -94,7 +105,7 @@ async function apiChainFallback(kitsuId, language) {
     try {
         // Step 1: Get mappings from Kitsu
         const kitsuUrl = `https://kitsu.io/api/edge/anime/${kitsuId}/mappings`;
-        const kitsuResponse = await fetch(kitsuUrl, {
+        const kitsuResponse = await fetchWithTimeout(kitsuUrl, {
             headers: {
                 'Accept': 'application/vnd.api+json',
                 'User-Agent': 'Streailer/1.0'
@@ -138,7 +149,7 @@ async function apiChainFallback(kitsuId, language) {
 
         // Step 3: TMDB Find
         const tmdbUrl = `https://api.themoviedb.org/3/find/${externalId}?api_key=${TMDB_KEY}&external_source=${externalSource}&language=${language}`;
-        const tmdbResponse = await fetch(tmdbUrl);
+        const tmdbResponse = await fetchWithTimeout(tmdbUrl);
 
         if (!tmdbResponse.ok) {
             console.log(`[KitsuProvider] TMDB API error: ${tmdbResponse.status}`);
@@ -177,7 +188,7 @@ async function kitsuToTmdb(kitsuId, language = 'en-US') {
         // Get title from TMDB
         try {
             const url = `https://api.themoviedb.org/3/tv/${fribbResult.tmdbId}?api_key=${TMDB_KEY}&language=${language}`;
-            const response = await fetch(url);
+            const response = await fetchWithTimeout(url);
             const data = await response.json();
 
             if (data.name) {
@@ -188,7 +199,7 @@ async function kitsuToTmdb(kitsuId, language = 'en-US') {
             // Try as movie
             try {
                 const url = `https://api.themoviedb.org/3/movie/${fribbResult.tmdbId}?api_key=${TMDB_KEY}&language=${language}`;
-                const response = await fetch(url);
+                const response = await fetchWithTimeout(url);
                 const data = await response.json();
 
                 if (data.title) {
