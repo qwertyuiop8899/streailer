@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+require('dotenv').config();
+
 const { addonBuilder, getRouter } = require('stremio-addon-sdk');
 const express = require('express');
 const path = require('path');
