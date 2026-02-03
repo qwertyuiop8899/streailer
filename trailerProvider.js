@@ -8,7 +8,7 @@ const fetch = require('node-fetch');
 
 // TMDB API configuration
 const TMDB_BASE = 'https://api.themoviedb.org/3';
-const TMDB_KEY = 'ad0f7351455041d8c9c0d4370a4b5fa5';
+const TMDB_KEY = process.env.TMDB_KEY;
 
 /**
  * Multi-language translations for trailer provider
