@@ -25,7 +25,10 @@ const SUPPORTED_LANGUAGES = [
     { code: 'ja-JP', name: '日本語' },
     { code: 'hi-IN', name: 'हिन्दी' },
     { code: 'ta-IN', name: 'தமிழ்' },
-    { code: 'tr-TR', name: 'Türkçe' }
+    { code: 'tr-TR', name: 'Türkçe' },
+    { code: 'pl-PL', name: 'Polski' },
+    { code: 'nl-NL', name: 'Nederlands' },
+    { code: 'hu-HU', name: 'Magyar' }
 ];
 
 // Manifest definition
