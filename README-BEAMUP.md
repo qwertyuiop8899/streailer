@@ -4,7 +4,7 @@
 
 - Node.js installed
 - GitHub account
-- SSH key added to GitHub account
+- SSH key added to GitHub account 
 
 ## Install BeamUp CLI 
 
