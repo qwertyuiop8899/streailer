@@ -6,7 +6,7 @@
 - GitHub account
 - SSH key added to GitHub account
 
-## Install BeamUp CLI
+## Install BeamUp CLI 
 
 ```bash
 npm install beamup-cli -g
