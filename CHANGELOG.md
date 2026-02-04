@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.2](https://github.com/qwertyuiop8899/streailer/compare/v1.0.1...v1.0.2) (2026-02-04)
+
+
+### Bug Fixes
+
+* camel case elfhosted ([e610093](https://github.com/qwertyuiop8899/streailer/commit/e61009353e61aeb241a3d384595f2a37fc40d30f))
+
 ## [1.0.1](https://github.com/qwertyuiop8899/streailer/compare/v1.0.0...v1.0.1) (2026-02-04)
 
 
