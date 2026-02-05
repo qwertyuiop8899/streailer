@@ -63,20 +63,17 @@ const manifest = {
         {
             key: 'externalLink',
             type: 'checkbox',
-            title: 'External Link',
-            default: false
+            title: 'External Link'
         },
         {
             key: 'showRecap',
             type: 'checkbox',
-            title: 'Season Recaps (TV Series)',
-            default: false
+            title: 'Season Recaps (TV Series)'
         },
         {
             key: 'onlyRecaps',
             type: 'checkbox',
-            title: 'Only Recaps (No Trailers)',
-            default: false
+            title: 'Only Recaps (No Trailers)'
         }
     ],
     stremioAddonsConfig: {
