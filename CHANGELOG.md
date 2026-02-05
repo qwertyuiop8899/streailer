@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.3](https://github.com/qwertyuiop8899/streailer/compare/v1.0.2...v1.0.3) (2026-02-05)
+
+
+### Bug Fixes
+
+* boolean ([bf3ed63](https://github.com/qwertyuiop8899/streailer/commit/bf3ed63f301cb32ded62221c8e23c690c553ce41))
+
 ## [1.0.2](https://github.com/qwertyuiop8899/streailer/compare/v1.0.1...v1.0.2) (2026-02-04)
 
 
