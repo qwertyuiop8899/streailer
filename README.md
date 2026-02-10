@@ -15,7 +15,7 @@ Watch movie and TV series trailers in **your language** directly within Stremio!
 With the new **External Link** option, trailers open directly in your device's **YouTube app** instead of Stremio's built-in player.
 
 **How to enable:**
-1. Go to the [configuration page](https://9aa032f52161-streailer.baby-beamup.club/configure)
+1. Go to the [configuration page](https://streailer.elfhosted.com/configure)
 2. Enable the **🔗 External Link** toggle
 3. Click **Install Addon** (reinstall with new configuration)
 4. Trailers now open in the external YouTube app! 🎉
