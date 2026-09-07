@@ -267,47 +267,54 @@
             font-weight: 900;
             letter-spacing: 3px;
             background: linear-gradient(135deg, var(--neon-purple), var(--neon-cyan), var(--neon-pink));
-            background-size: 200% 200%;
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
-            animation: textGlow 3s ease infinite;
+            text-shadow: 0 0 30px rgba(168, 85, 247, 0.5);
             margin-bottom: 8px;
-            text-transform: uppercase;
-        }
-
-        @keyframes textGlow {
-
-            0%,
-            100% {
-                background-position: 0% 50%;
-                filter: drop-shadow(0 0 10px rgba(168, 85, 247, 0.5));
-            }
-
-            50% {
-                background-position: 100% 50%;
-                filter: drop-shadow(0 0 20px rgba(34, 211, 238, 0.5));
-            }
         }
 
         .subtitle {
             color: rgba(255, 255, 255, 0.6);
             font-size: 14px;
+            font-weight: 400;
             letter-spacing: 1px;
         }
 
+        .settings-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+
         .form-group {
-            margin-bottom: 28px;
+            margin-bottom: 0;
+            background: rgba(255, 255, 255, 0.02);
+            padding: 16px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: all 0.3s ease;
+        }
+
+        .form-group:hover {
+            background: rgba(255, 255, 255, 0.04);
+            border-color: rgba(168, 85, 247, 0.3);
+        }
+
+        .form-group.full-width {
+            grid-column: 1 / -1;
         }
 
         .form-label {
             display: block;
-            font-size: 13px;
+            font-size: 12px;
             font-weight: 600;
-            color: var(--neon-cyan);
-            margin-bottom: 10px;
-            letter-spacing: 1px;
+            letter-spacing: 1.5px;
             text-transform: uppercase;
+            color: var(--neon-cyan);
+            margin-bottom: 12px;
+            text-shadow: 0 0 10px rgba(34, 211, 238, 0.3);
         }
 
         .select-wrapper {
@@ -316,61 +323,56 @@
 
         .select-wrapper::after {
             content: '▼';
-            position: absolute;
-            right: 18px;
-            top: 50%;
-            transform: translateY(-50%);
             font-size: 10px;
             color: var(--neon-purple);
+            position: absolute;
+            right: 16px;
+            top: 50%;
+            transform: translateY(-50%);
             pointer-events: none;
-            transition: color 0.3s;
+            transition: all 0.3s ease;
         }
 
         .select-wrapper:hover::after {
             color: var(--neon-cyan);
+            transform: translateY(-50%) scale(1.2);
         }
 
         select {
             width: 100%;
-            padding: 16px 20px;
-            font-size: 16px;
-            font-family: inherit;
-            background: rgba(20, 20, 35, 0.8);
-            border: 2px solid rgba(168, 85, 247, 0.3);
+            padding: 14px 18px;
+            font-size: 15px;
+            font-family: 'Inter', sans-serif;
+            background: rgba(10, 10, 15, 0.9);
+            color: #f0f0f0;
+            border: 1px solid rgba(168, 85, 247, 0.3);
             border-radius: 12px;
-            color: #fff;
+            outline: none;
             cursor: pointer;
             appearance: none;
             transition: all 0.3s ease;
         }
 
-        select:hover {
+        select:focus {
             border-color: var(--neon-cyan);
             box-shadow: 0 0 20px rgba(34, 211, 238, 0.3);
         }
 
-        select:focus {
-            outline: none;
-            border-color: var(--neon-purple);
-            box-shadow: 0 0 30px rgba(168, 85, 247, 0.4);
-        }
-
         select option {
-            background: #1a1a2e;
-            color: #fff;
-            padding: 10px;
+            background: #0f0f19;
+            color: #f0f0f0;
+            padding: 12px;
         }
 
-        /* Toggle Switch Styles */
         .toggle-container {
             display: flex;
             align-items: center;
-            gap: 14px;
+            gap: 16px;
+            cursor: pointer;
         }
 
         .toggle-switch {
             position: relative;
-            display: inline-block;
             width: 56px;
             height: 30px;
             flex-shrink: 0;
@@ -389,8 +391,8 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background: rgba(20, 20, 35, 0.8);
-            border: 2px solid rgba(168, 85, 247, 0.3);
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
             border-radius: 30px;
             transition: all 0.4s ease;
         }
@@ -398,20 +400,20 @@
         .toggle-slider::before {
             position: absolute;
             content: '';
-            height: 20px;
-            width: 20px;
+            height: 22px;
+            width: 22px;
             left: 3px;
             bottom: 3px;
-            background: rgba(168, 85, 247, 0.6);
+            background: #f0f0f0;
             border-radius: 50%;
-            transition: all 0.4s ease;
-            box-shadow: 0 0 10px rgba(168, 85, 247, 0.4);
+            transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
         }
 
         .toggle-switch input:checked+.toggle-slider {
-            background: rgba(34, 211, 238, 0.2);
-            border-color: var(--neon-cyan);
-            box-shadow: 0 0 20px rgba(34, 211, 238, 0.3);
+            background: linear-gradient(135deg, var(--neon-purple), var(--neon-cyan));
+            border-color: transparent;
+            box-shadow: 0 0 20px rgba(168, 85, 247, 0.5);
         }
 
         .toggle-switch input:checked+.toggle-slider::before {
@@ -494,6 +496,21 @@
             transform: translateY(-3px);
         }
 
+        /* Stile pulsante Ko-fi */
+        .btn-kofi {
+            background: linear-gradient(135deg, #ff5e5b, #f4a64b);
+            color: #ffffff;
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            box-shadow: 0 0 25px rgba(255, 94, 91, 0.35);
+        }
+
+        .btn-kofi:hover {
+            background: linear-gradient(135deg, #ff6e6b, #ffb356);
+            transform: translateY(-3px);
+            box-shadow: 0 0 45px rgba(255, 94, 91, 0.6), 0 10px 30px rgba(0, 0, 0, 0.4);
+            color: #ffffff;
+        }
+
         .btn-icon {
             font-size: 20px;
         }
@@ -508,13 +525,10 @@
             padding: 16px 32px;
             border-radius: 12px;
             font-weight: 600;
-            font-family: 'Orbitron', sans-serif;
-            letter-spacing: 1px;
-            box-shadow: 0 0 40px rgba(168, 85, 247, 0.5);
+            box-shadow: 0 0 30px rgba(168, 85, 247, 0.5);
             opacity: 0;
             transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-            z-index: 9999;
-            pointer-events: none;
+            z-index: 1000;
         }
 
         .toast.show {
@@ -522,85 +536,81 @@
             opacity: 1;
         }
 
-        .info-section {
-            margin-top: 28px;
-            padding-top: 24px;
-            border-top: 1px solid rgba(168, 85, 247, 0.2);
-        }
-
-        .info-title {
-            font-size: 11px;
-            font-weight: 700;
-            color: rgba(255, 255, 255, 0.4);
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            margin-bottom: 14px;
-        }
-
-        .info-flow {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            flex-wrap: wrap;
-            font-size: 12px;
-        }
-
-        .flow-step {
-            background: rgba(168, 85, 247, 0.15);
-            padding: 8px 14px;
-            border-radius: 8px;
-            border: 1px solid rgba(168, 85, 247, 0.3);
-            transition: all 0.3s ease;
-        }
-
-        .flow-step:hover {
-            background: rgba(34, 211, 238, 0.15);
-            border-color: rgba(34, 211, 238, 0.5);
-            transform: scale(1.05);
-        }
-
-        .flow-arrow {
-            color: var(--neon-purple);
-            font-weight: bold;
-        }
-
-        @media (max-width: 480px) {
+        /* Responsive adjustments */
+        @media (max-width: 600px) {
             .card {
-                padding: 28px;
+                padding: 24px;
             }
 
             .title {
                 font-size: 24px;
             }
 
+            .logo-container {
+                width: 160px;
+                height: 120px;
+            }
+
             .btn {
-                padding: 16px 20px;
+                padding: 14px 20px;
                 font-size: 14px;
             }
-        }
 
-        /* Settings Grid */
-        .settings-grid {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 20px;
-        }
-
-        @media (min-width: 768px) {
             .settings-grid {
-                grid-template-columns: 1fr 1fr;
+                grid-template-columns: 1fr;
             }
 
-            .form-group.full-width {
-                grid-column: span 2;
+            .info-flow {
+                flex-wrap: wrap;
+                gap: 8px;
             }
+        }
+
+        /* Info Section */
+        .info-section {
+            margin-top: 32px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(168, 85, 247, 0.2);
+            border-radius: 16px;
+            text-align: center;
+        }
+
+        .info-title {
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            color: var(--neon-cyan);
+            margin-bottom: 12px;
+        }
+
+        .info-flow {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .flow-step {
+            padding: 6px 12px;
+            background: rgba(168, 85, 247, 0.1);
+            border: 1px solid rgba(168, 85, 247, 0.3);
+            border-radius: 8px;
+        }
+
+        .flow-arrow {
+            color: var(--neon-pink);
+            font-weight: bold;
         }
 
         /* Footer Section */
         .footer-section {
             margin-top: 32px;
             padding-top: 24px;
-            border-top: 1px solid rgba(168, 85, 247, 0.2);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
             text-align: center;
             display: flex;
             flex-direction: column;
@@ -609,46 +619,52 @@
         }
 
         .footer-logo {
-            height: 40px;
+            height: 28px;
             width: auto;
-            object-fit: contain;
+            opacity: 0.8;
+            transition: opacity 0.3s ease;
+        }
+
+        .footer-logo:hover {
+            opacity: 1;
         }
 
         .footer-text {
-            font-size: 13px;
-            color: rgba(255, 255, 255, 0.6);
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.5);
             line-height: 1.5;
         }
 
         .footer-link {
             color: var(--neon-cyan);
             text-decoration: none;
-            font-weight: 600;
-            transition: color 0.3s;
+            transition: all 0.3s ease;
         }
 
         .footer-link:hover {
-            color: var(--neon-purple);
-            text-decoration: underline;
+            color: var(--neon-pink);
+            text-shadow: 0 0 10px rgba(236, 72, 153, 0.5);
         }
 
         /* GitHub Corner */
         .github-corner {
-            margin-top: 16px;
-            opacity: 0.7;
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: rgba(255, 255, 255, 0.4);
             transition: all 0.3s ease;
-            display: inline-flex;
         }
 
         .github-corner:hover {
-            opacity: 1;
+            color: var(--neon-cyan);
             transform: scale(1.1);
+            filter: drop-shadow(0 0 10px var(--neon-cyan));
         }
 
         .github-icon {
             width: 28px;
             height: 28px;
-            fill: rgba(255, 255, 255, 0.8);
+            fill: currentColor;
         }
     </style>
 </head>
@@ -748,6 +764,10 @@
                     <span class="btn-icon">📋</span>
                     Copy Manifest
                 </button>
+                <a href="https://ko-fi.com/TUO_USERNAME" target="_blank" rel="noopener noreferrer" class="btn btn-kofi">
+                    <span class="btn-icon">☕</span>
+                    <span id="kofiText">Buy me a coffee</span>
+                </a>
             </div>
 
             <div class="info-section">
@@ -791,9 +811,30 @@
         const onlyRecapsToggle = document.getElementById('onlyRecapsToggle');
         const installBtn = document.getElementById('installBtn');
         const copyBtn = document.getElementById('copyBtn');
+        const kofiText = document.getElementById('kofiText');
         const toast = document.getElementById('toast');
         const toggleDescription = document.getElementById('toggleDescription');
         const recapDescription = document.getElementById('recapDescription');
+
+        // Translations for Ko-fi button
+        const kofiTranslations = {
+            'en-US': 'Buy me a coffee',
+            'it-IT': 'Offri un caffè',
+            'es-MX': 'Invítame un café',
+            'es-ES': 'Invítame un café',
+            'pt-BR': 'Pague um café',
+            'pt-PT': 'Pague um café',
+            'de-DE': 'Spendier einen Kaffee',
+            'fr-FR': 'Offrir un café',
+            'ru-RU': 'Угостить кофе',
+            'ja-JP': 'コーヒーをおごる',
+            'hi-IN': 'कॉफ़ी पिलाएं',
+            'ta-IN': 'காபி வாங்கிக் கொடுங்கள்',
+            'tr-TR': 'Bir kahve ısmarla',
+            'pl-PL': 'Postaw kawę',
+            'nl-NL': 'Trakteer op een koffie',
+            'hu-HU': 'Hívj meg egy kávéra'
+        };
 
         // Translations for the external link toggle description
         const translations = {
@@ -818,115 +859,152 @@
         // Translations for the recap toggle description
         const recapTranslations = {
             'en-US': 'Show recap videos for previous seasons (Season 2+)',
-            'es-MX': 'Mostrar resúmenes de temporadas anteriores (Temporada 2+)',
-            'pt-BR': 'Mostrar recaps de temporadas anteriores (Temporada 2+)',
-            'pt-PT': 'Mostrar recaps de temporadas anteriores (Temporada 2+)',
-            'de-DE': 'Recap-Videos für vorherige Staffeln anzeigen (Staffel 2+)',
-            'fr-FR': 'Afficher les récaps des saisons précédentes (Saison 2+)',
-            'es-ES': 'Mostrar resúmenes de temporadas anteriores (Temporada 2+)',
-            'it-IT': 'Mostra i recap delle stagioni precedenti (Stagione 2+)',
-            'ru-RU': 'Показать обзор предыдущих сезонов (Сезон 2+)',
-            'ja-JP': '前シーズンのまとめを表示 (シーズン2以降)',
-            'hi-IN': 'पिछले सीज़न के रिकैप दिखाएं (सीज़न 2+)',
-            'ta-IN': 'முந்தைய சீசன் ரீகேப்களைக் காண்பி (சீசன் 2+)',
-            'tr-TR': 'Önceki sezonların özetlerini göster (Sezon 2+)',
+            'es-MX': 'Mostrar videos de resumen para temporadas anteriores (Temporada 2+)',
+            'pt-BR': 'Mostrar vídeos de recapitulação de temporadas anteriores (Temporada 2+)',
+            'pt-PT': 'Mostrar vídeos de recapitulação de temporadas anteriores (Temporada 2+)',
+            'de-DE': 'Rückblick-Videos für vorherige Staffeln anzeigen (Staffel 2+)',
+            'fr-FR': 'Afficher les récapitulatifs des saisons précédentes (Saison 2+)',
+            'es-ES': 'Mostrar vídeos de resumen para temporadas anteriores (Temporada 2+)',
+            'it-IT': 'Mostra video riassuntivi delle stagioni precedenti (Stagione 2+)',
+            'ru-RU': 'Показывать видео-итоги предыдущих сезонов (Сезон 2+)',
+            'ja-JP': '前シーズンの総集編動画を表示（シーズン2以降）',
+            'hi-IN': 'पिछले सीज़न के लिए रीकैप वीडियो दिखाएं (सीज़न 2+)',
+            'ta-IN': 'முந்தைய சீசன்களுக்கான ரீகேப் வீடியோக்களைக் காட்டு (சீசன் 2+)',
+            'tr-TR': 'Önceki sezonlar için özet videolarını göster (Sezon 2+)',
             'pl-PL': 'Pokaż podsumowania poprzednich sezonów (Sezon 2+)',
-            'nl-NL': 'Toon recaps van eerdere seizoenen (Seizoen 2+)',
-            'hu-HU': 'Előző évadok összefoglalóinak megjelenítése (2. évad+)'
+            'nl-NL': 'Toon recap-video\'s van vorige seizoenen (Seizoen 2+)',
+            'hu-HU': 'Összefoglaló videók mutatása a korábbi évadokhoz (2. évad+)'
         };
 
         // Translations for the only recaps toggle description
         const onlyRecapsTranslations = {
-            'en-US': 'Show only recaps, hide trailers',
-            'es-MX': 'Mostrar solo resúmenes, ocultar tráilers',
-            'pt-BR': 'Mostrar apenas recaps, esconder trailers',
-            'pt-PT': 'Mostrar apenas recaps, esconder trailers',
-            'de-DE': 'Nur Recaps anzeigen, Trailer ausblenden',
-            'fr-FR': 'Afficher uniquement les récaps, masquer les bandes-annonces',
-            'es-ES': 'Mostrar solo resúmenes, ocultar tráilers',
-            'it-IT': 'Mostra solo i recap, nascondi i trailer',
-            'ru-RU': 'Показывать только обзоры, скрыть трейлеры',
-            'ja-JP': 'リキャップのみ表示、トレーラー非表示',
-            'hi-IN': 'केवल रिकैप दिखाएं, ट्रेलर छुपाएं',
-            'ta-IN': 'ரீகேப்களை மட்டும் காண்பி, டிரெய்லர்களை மறை',
-            'tr-TR': 'Sadece özetleri göster, fragmanları gizle',
-            'pl-PL': 'Pokaż tylko podsumowania, ukryj zwiastuny',
-            'nl-NL': 'Toon alleen recaps, verberg trailers',
-            'hu-HU': 'Csak összefoglalók megjelenítése, előzetesek elrejtése'
+            'en-US': 'Show only recaps, no trailers',
+            'es-MX': 'Mostrar solo resúmenes, sin trailers',
+            'pt-BR': 'Mostrar apenas recapitulações, sem trailers',
+            'pt-PT': 'Mostrar apenas recapitulações, sem trailers',
+            'de-DE': 'Nur Rückblicke anzeigen, keine Trailer',
+            'fr-FR': 'Afficher uniquement les récapitulatifs, pas de bandes-annonces',
+            'es-ES': 'Mostrar solo resúmenes, sin trailers',
+            'it-IT': 'Mostra solo riassunti, nessun trailer',
+            'ru-RU': 'Показывать только итоги, без трейлеров',
+            'ja-JP': '総集編のみを表示し、トレーラーは非表示',
+            'hi-IN': 'केवल रीकैप दिखाएं, कोई ट्रेलर नहीं',
+            'ta-IN': 'ரீகேப்களை மட்டுமே காட்டு, டிரெய்லர்கள் இல்லை',
+            'tr-TR': 'Yalnızca özetleri göster, fragman yok',
+            'pl-PL': 'Pokaż tylko podsumowania, bez zwiastunów',
+            'nl-NL': 'Toon alleen recaps, geen trailers',
+            'hu-HU': 'Csak összefoglalók mutatása, előzetesek nélkül'
         };
 
-        function updateToggleDescription() {
-            const lang = languageSelect.value;
-            toggleDescription.textContent = translations[lang] || translations['en-US'];
-            recapDescription.textContent = recapTranslations[lang] || recapTranslations['en-US'];
-            document.getElementById('onlyRecapsDescription').textContent = onlyRecapsTranslations[lang] || onlyRecapsTranslations['en-US'];
+        function updateDescription() {
+            const selectedLang = languageSelect.value;
+            toggleDescription.textContent = translations[selectedLang] || translations['en-US'];
+            recapDescription.textContent = recapTranslations[selectedLang] || recapTranslations['en-US'];
+            onlyRecapsDescription.textContent = onlyRecapsTranslations[selectedLang] || onlyRecapsTranslations['en-US'];
+            if (kofiText) {
+                kofiText.textContent = kofiTranslations[selectedLang] || kofiTranslations['en-US'];
+            }
         }
 
-        function getBaseUrl() {
-            const protocol = window.location.protocol;
-            const host = window.location.host;
-            return `${protocol}//${host}`;
+        languageSelect.addEventListener('change', updateDescription);
+
+        // Handle recap toggles dependency
+        recapToggle.addEventListener('change', () => {
+            if (!recapToggle.checked) {
+                onlyRecapsToggle.checked = false;
+                onlyRecapsToggle.disabled = true;
+                onlyRecapsToggle.closest('.form-group').style.opacity = '0.5';
+            } else {
+                onlyRecapsToggle.disabled = false;
+                onlyRecapsToggle.closest('.form-group').style.opacity = '1';
+            }
+        });
+
+        // Initialize onlyRecaps state based on recapToggle
+        if (!recapToggle.checked) {
+            onlyRecapsToggle.disabled = true;
+            onlyRecapsToggle.closest('.form-group').style.opacity = '0.5';
+        }
+
+        function getConfig() {
+            const lang = languageSelect.value;
+            const external = externalLinkToggle.checked;
+            const recap = recapToggle.checked;
+            const onlyRecaps = onlyRecapsToggle.checked;
+
+            const params = [];
+            params.push(`lang=${encodeURIComponent(lang)}`);
+
+            if (external) {
+                params.push('external=true');
+            }
+
+            if (recap) {
+                params.push('recap=true');
+                if (onlyRecaps) {
+                    params.push('onlyRecaps=true');
+                }
+            }
+
+            return params.join('&');
         }
 
         function getManifestUrl() {
-            const language = languageSelect.value;
-            const externalLink = externalLinkToggle.checked;
-            const showRecap = recapToggle.checked;
-            const onlyRecaps = onlyRecapsToggle.checked;
-            const baseUrl = getBaseUrl();
-            const config = JSON.stringify({
-                language: language,
-                externalLink: externalLink,
-                showRecap: showRecap,
-                onlyRecaps: onlyRecaps
-            });
-            return `${baseUrl}/${encodeURIComponent(config)}/manifest.json`;
+            const config = getConfig();
+            const baseUrl = window.location.origin;
+            return `${baseUrl}/${config}/manifest.json`;
         }
 
-        function getInstallUrl() {
+        function getStremioUrl() {
+            const config = getConfig();
+            const host = window.location.host;
+            return `stremio://${host}/${config}/manifest.json`;
+        }
+
+        installBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const stremioUrl = getStremioUrl();
+            window.location.href = stremioUrl;
+        });
+
+        copyBtn.addEventListener('click', async () => {
             const manifestUrl = getManifestUrl();
-            return manifestUrl.replace(/^https?:/, 'stremio:');
-        }
+            try {
+                await navigator.clipboard.writeText(manifestUrl);
+                showToast();
+            } catch (err) {
+                const textarea = document.createElement('textarea');
+                textarea.value = manifestUrl;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                showToast();
+            }
+        });
 
-        function updateInstallLink() {
-            installBtn.href = getInstallUrl();
-        }
-
-        function showToast(message) {
-            toast.textContent = message;
+        function showToast() {
             toast.classList.add('show');
             setTimeout(() => {
                 toast.classList.remove('show');
             }, 3000);
         }
 
-        languageSelect.addEventListener('change', () => {
-            updateInstallLink();
-            updateToggleDescription();
-        });
-        externalLinkToggle.addEventListener('change', updateInstallLink);
-        recapToggle.addEventListener('change', updateInstallLink);
-        onlyRecapsToggle.addEventListener('change', updateInstallLink);
-
-        copyBtn.addEventListener('click', async () => {
-            const manifestUrl = getManifestUrl();
-            try {
-                await navigator.clipboard.writeText(manifestUrl);
-                showToast('✓ URL copied to clipboard!');
-            } catch (err) {
-                const textArea = document.createElement('textarea');
-                textArea.value = manifestUrl;
-                document.body.appendChild(textArea);
-                textArea.select();
-                document.execCommand('copy');
-                document.body.removeChild(textArea);
-                showToast('✓ URL copied to clipboard!');
+        // Set default language based on browser
+        const browserLang = navigator.language;
+        const availableOptions = Array.from(languageSelect.options).map(o => o.value);
+        if (availableOptions.includes(browserLang)) {
+            languageSelect.value = browserLang;
+        } else {
+            const prefix = browserLang.split('-')[0];
+            const match = availableOptions.find(o => o.startsWith(prefix));
+            if (match) {
+                languageSelect.value = match;
             }
-        });
+        }
 
-        // Initialize
-        updateInstallLink();
-        updateToggleDescription();
+        // Update description after language detection
+        updateDescription();
     </script>
 </body>
 
