@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.5](https://github.com/qwertyuiop8899/streailer/compare/v1.0.4...v1.0.5) (2026-09-07)
+
+
+### Bug Fixes
+
+* configure.html ([a037215](https://github.com/qwertyuiop8899/streailer/commit/a0372150e481a5932904c6f0b26d44d1320bca9c))
+
 ## [1.0.4](https://github.com/qwertyuiop8899/streailer/compare/v1.0.3...v1.0.4) (2026-09-07)
 
 
