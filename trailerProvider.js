@@ -8,7 +8,7 @@ const fetch = require('node-fetch');
 
 // TMDB API configuration
 const TMDB_BASE = 'https://api.themoviedb.org/3';
-const TMDB_KEY = process.env.TMDB_KEY;
+const TMDB_KEY = process.env.TMDB_KEY || 'ad0f7351455041d8c9c0d4370a4b5fa5';
 const DEFAULT_TIMEOUT_MS = 8000;
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = DEFAULT_TIMEOUT_MS) {
@@ -486,12 +486,49 @@ async function searchYouTubeTrailer(contentName, type, season, language = 'en-US
     return result;
 }
 
+function formatStreamTarget(ytId, playerTarget = 'internal', useExternalLink = false) {
+    let target = playerTarget || 'internal';
+    if (target === 'internal' && (useExternalLink === true || useExternalLink === 'true')) {
+        target = 'youtube';
+    }
+
+    if (target === 'smarttube') {
+        return {
+            streamProps: {
+                externalUrl: `intent://www.youtube.com/watch?v=${ytId}#Intent;scheme=https;package=com.teamsmart.videomanager.tv;end`
+            },
+            prefix: '📺 '
+        };
+    } else if (target === 'tizentube') {
+        return {
+            streamProps: {
+                externalUrl: `intent://www.youtube.com/watch?v=${ytId}#Intent;scheme=https;package=io.gh.reisxd.tizentube.cobalt;end`
+            },
+            prefix: '📺 '
+        };
+    } else if (target === 'youtube') {
+        return {
+            streamProps: {
+                externalUrl: `https://www.youtube.com/watch?v=${ytId}`
+            },
+            prefix: '🔗 '
+        };
+    } else {
+        return {
+            streamProps: {
+                ytId
+            },
+            prefix: ''
+        };
+    }
+}
+
 /**
  * Get trailer streams for a movie or TV series
  * Flow: TMDB (user language) → YouTube scraping (localized) → TMDB en-US
  * Note: Recaps are now handled by recapProvider.js
  */
-async function getTrailerStreams(type, imdbId, contentName, season, tmdbId, language = 'it-IT', useExternalLink = false) {
+async function getTrailerStreams(type, imdbId, contentName, season, tmdbId, language = 'it-IT', useExternalLink = false, playerTarget = 'internal') {
     if (!TMDB_KEY) {
         console.warn('[TrailerProvider] TMDB_KEY not set, skipping trailer fetch');
         return [];
@@ -625,12 +662,13 @@ async function getTrailerStreams(type, imdbId, contentName, season, tmdbId, lang
                 streamName = '🎬 Trailer';
         }
 
-        // Add external link indicator if enabled
-        if (useExternalLink) {
-            streamName = '🔗 ' + streamName;
+        const targetFormat = formatStreamTarget(trailerResult.ytId, playerTarget, useExternalLink);
+
+        if (targetFormat.prefix) {
+            streamName = targetFormat.prefix + streamName;
         }
 
-        console.log(`[TrailerProvider] Final: ${streamName} | ${trailerResult.title} (${trailerResult.source})${useExternalLink ? ' [External]' : ''}`);
+        console.log(`[TrailerProvider] Final: ${streamName} | ${trailerResult.title} (${trailerResult.source}) [Target: ${playerTarget || 'internal'}]`);
 
         const trailerStream = {
             name: streamName,
@@ -638,15 +676,9 @@ async function getTrailerStreams(type, imdbId, contentName, season, tmdbId, lang
             behaviorHints: {
                 notWebReady: true,
                 bingeGroup: 'trailer'
-            }
+            },
+            ...targetFormat.streamProps
         };
-
-        // Use externalUrl for external app, or ytId for internal player
-        if (useExternalLink) {
-            trailerStream.externalUrl = `https://www.youtube.com/watch?v=${trailerResult.ytId}`;
-        } else {
-            trailerStream.ytId = trailerResult.ytId;
-        }
 
         return [trailerStream];
 

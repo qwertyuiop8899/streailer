@@ -61,6 +61,13 @@ const manifest = {
             required: true
         },
         {
+            key: 'playerTarget',
+            type: 'select',
+            title: 'Player Target / Modalità Riproduzione',
+            options: ['internal', 'youtube', 'smarttube', 'tizentube'],
+            default: 'internal'
+        },
+        {
             key: 'externalLink',
             type: 'checkbox',
             title: 'External Link'
@@ -104,7 +111,8 @@ builder.defineStreamHandler(async ({ type, id, config }) => {
 
         // Get config options
         const language = config?.language || 'it-IT';
-        const useExternalLink = config?.externalLink === 'true' || config?.externalLink === true;
+        const playerTarget = config?.playerTarget || (config?.externalLink ? 'youtube' : 'internal');
+        const useExternalLink = playerTarget !== 'internal' || config?.externalLink === 'true' || config?.externalLink === true;
         const showRecap = config?.showRecap === 'true' || config?.showRecap === true;
         const onlyRecaps = config?.onlyRecaps === 'true' || config?.onlyRecaps === true;
 
@@ -114,7 +122,7 @@ builder.defineStreamHandler(async ({ type, id, config }) => {
         let season = undefined;
         let episode = undefined;
         let isKitsu = false;
-        let kitsuTitle = ''; // Store Kitsu title for recap search
+        let kitsuTitle = '';
 
         // Detect ID type
         if (id.startsWith('tmdb:')) {
@@ -146,21 +154,23 @@ builder.defineStreamHandler(async ({ type, id, config }) => {
             }
         } else if (id.startsWith('kitsu:')) {
             // Kitsu anime ID - convert to TMDB
-            // Kitsu format: kitsu:ID:episode (each season has its own ID)
+            // Kitsu format: kitsu:ID:episode
             isKitsu = true;
             const parts = id.split(':');
             const kitsuId = parts[1];
             if (parts.length >= 3) {
-                episode = parseInt(parts[2], 10); // Kitsu's second param is episode, not season
+                episode = parseInt(parts[2], 10);
             }
-            // Kitsu doesn't have multi-season structure, so season stays undefined
 
             console.log(`[Streailer] Converting Kitsu ID: ${kitsuId} (episode: ${episode})`);
             const kitsuResult = await kitsuToTmdb(kitsuId, language);
-            if (kitsuResult) {
+            if (kitsuResult && kitsuResult.tmdbId) {
                 tmdbId = kitsuResult.tmdbId;
-                kitsuTitle = kitsuResult.title;
-                console.log(`[Streailer] Kitsu ${kitsuId} → TMDB ${tmdbId} ("${kitsuTitle}")`);
+                kitsuTitle = kitsuResult.title || '';
+                if (kitsuResult.season !== undefined) {
+                    season = kitsuResult.season;
+                }
+                console.log(`[Streailer] Kitsu ${kitsuId} → TMDB ${tmdbId} ("${kitsuTitle}", Season: ${season || 'N/A'})`);
             } else {
                 console.log(`[Streailer] Could not convert Kitsu ID: ${kitsuId}`);
                 return { streams: [] };
@@ -179,7 +189,7 @@ builder.defineStreamHandler(async ({ type, id, config }) => {
             }
         }
 
-        // For series: only show streams on episode 1 of each season (but not for Kitsu - each season has own ID)
+        // For series: only show streams on episode 1 of each season (exempt Kitsu so anime episodes show trailers)
         if (type === 'series' && !isKitsu && episode !== undefined && episode !== 1) {
             console.log(`[Streailer] Episode ${episode} - skipping (only episode 1 shows trailer/recap)`);
             return { streams: [] };
@@ -194,18 +204,23 @@ builder.defineStreamHandler(async ({ type, id, config }) => {
                 season,
                 tmdbId,
                 language,
-                useExternalLink
+                useExternalLink,
+                playerTarget
             );
 
             // Get recap streams for TV series if enabled
             let recapStreams = [];
 
             if (showRecap && type === 'series') {
-                if (isKitsu && kitsuTitle) {
-                    // Kitsu: search generic recap (each season has own ID, no multi-season structure)
-                    console.log(`[Streailer] Kitsu recap search for "${kitsuTitle}"`);
+                if (isKitsu && season !== undefined && season >= 2) {
+                    // Kitsu with season >= 2: search season-specific recaps
+                    console.log(`[Streailer] Kitsu season ${season} recap search for "${kitsuTitle}"`);
+                    recapStreams = await getRecapStreams(tmdbId, kitsuTitle, season, language, useExternalLink, imdbId, playerTarget);
+                } else if (isKitsu && kitsuTitle) {
+                    // Kitsu: fallback search generic recap
+                    console.log(`[Streailer] Kitsu generic recap search for "${kitsuTitle}"`);
                     const { searchGenericRecap } = require('./recapProvider');
-                    const genericRecap = await searchGenericRecap(kitsuTitle, language, useExternalLink);
+                    const genericRecap = await searchGenericRecap(kitsuTitle, language, useExternalLink, playerTarget);
                     if (genericRecap) {
                         recapStreams = [genericRecap];
                     }
@@ -230,7 +245,7 @@ builder.defineStreamHandler(async ({ type, id, config }) => {
                     }
 
                     if (seriesName && recapTmdbId) {
-                        recapStreams = await getRecapStreams(recapTmdbId, seriesName, season, language, useExternalLink);
+                        recapStreams = await getRecapStreams(recapTmdbId, seriesName, season, language, useExternalLink, imdbId, playerTarget);
                     }
                 }
             }
@@ -238,11 +253,9 @@ builder.defineStreamHandler(async ({ type, id, config }) => {
             // Combine streams based on config
             let streams;
             if (onlyRecaps) {
-                // Only recaps mode: no trailers, even if no recaps are found
                 streams = recapStreams;
                 console.log(`[Streailer] Returning ${streams.length} stream(s) (recaps only)`);
             } else {
-                // Normal mode: trailer first, then recaps
                 streams = [...trailerStreams, ...recapStreams];
                 console.log(`[Streailer] Returning ${streams.length} stream(s) (${trailerStreams.length} trailer + ${recapStreams.length} recaps)`);
             }
@@ -256,6 +269,50 @@ builder.defineStreamHandler(async ({ type, id, config }) => {
         activeStreamRequests = Math.max(0, activeStreamRequests - 1);
     }
 });
+
+// Helper function to normalize various config formats (query string, JSON, Base64)
+function normalizeConfigString(rawConfig) {
+    if (!rawConfig) return null;
+    let decoded = rawConfig;
+    try {
+        decoded = decodeURIComponent(rawConfig);
+    } catch (e) { }
+
+    // Direct JSON
+    try {
+        const obj = JSON.parse(decoded);
+        if (obj && typeof obj === 'object') return obj;
+    } catch (e) { }
+
+    // Base64 JSON
+    try {
+        const fromB64 = Buffer.from(decoded, 'base64').toString('utf-8');
+        const obj = JSON.parse(fromB64);
+        if (obj && typeof obj === 'object') return obj;
+    } catch (e) { }
+
+    // Query string format (e.g. lang=es-MX&external=true&player=smarttube)
+    if (decoded.includes('=') || decoded.includes('&')) {
+        const obj = {};
+        const pairs = decoded.split('&');
+        for (const pair of pairs) {
+            const [k, v] = pair.split('=');
+            if (!k) continue;
+            const key = decodeURIComponent(k).trim();
+            const val = v !== undefined ? decodeURIComponent(v).trim() : 'true';
+
+            if (key === 'lang' || key === 'language') obj.language = val;
+            else if (key === 'external' || key === 'externalLink') obj.externalLink = (val === 'true');
+            else if (key === 'recap' || key === 'showRecap') obj.showRecap = (val === 'true');
+            else if (key === 'onlyRecaps') obj.onlyRecaps = (val === 'true');
+            else if (key === 'player' || key === 'playerTarget') obj.playerTarget = val;
+            else obj[key] = val;
+        }
+        return obj;
+    }
+
+    return null;
+}
 
 // Create Express app
 const app = express();
@@ -278,19 +335,32 @@ app.get('/:config/configure', (req, res) => {
 // Serve static files
 app.use('/static', express.static(path.join(__dirname, 'public')));
 
-// Get the addon router
-const addonInterface = builder.getInterface();
-const addonRouter = getRouter(addonInterface);
+// Middleware to normalize query-string style configs into valid JSON URLs before the SDK router
+app.use((req, res, next) => {
+    const parts = req.url.split('/').filter(Boolean);
+    if (parts.length > 0) {
+        const firstSegment = parts[0];
+        // Skip well-known non-config paths
+        if (firstSegment !== 'configure' && firstSegment !== 'static' && firstSegment !== 'manifest.json' && firstSegment !== 'favicon.ico') {
+            const normalized = normalizeConfigString(firstSegment);
+            if (normalized) {
+                const jsonEncoded = encodeURIComponent(JSON.stringify(normalized));
+                if (firstSegment !== jsonEncoded) {
+                    parts[0] = jsonEncoded;
+                    req.url = '/' + parts.join('/');
+                }
+            }
+        }
+    }
+    next();
+});
 
-// IMPORTANT: Middleware to intercept ALL manifest.json requests BEFORE SDK router
-// This ensures we always return OUR manifest, not the SDK's cached copy
+// Intercept manifest requests to always serve our manifest
 app.use((req, res, next) => {
     if (req.path.endsWith('/manifest.json')) {
         res.setHeader('Content-Type', 'application/json');
         res.setHeader('Access-Control-Allow-Origin', '*');
-        // Ensure we send a clean copy of the manifest with the config
         const manifestToSend = { ...manifest };
-        // Explicitly ensure stremioAddonsConfig is present if defined
         if (manifest.stremioAddonsConfig) {
             manifestToSend.stremioAddonsConfig = manifest.stremioAddonsConfig;
         }
@@ -299,7 +369,9 @@ app.use((req, res, next) => {
     next();
 });
 
-// Use the addon router for other routes (streams, etc.)
+// Get the addon router and attach to Express
+const addonInterface = builder.getInterface();
+const addonRouter = getRouter(addonInterface);
 app.use('/', addonRouter);
 
 // Start server

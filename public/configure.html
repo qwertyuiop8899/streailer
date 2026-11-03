@@ -719,6 +719,21 @@
                     </div>
                 </div>
 
+                <div class="form-group full-width">
+                    <label class="form-label" id="playerLabel">🎬 Player Target</label>
+                    <div class="select-wrapper">
+                        <select id="playerSelect">
+                            <option value="internal">📱 Stremio In-App Player (Default)</option>
+                            <option value="youtube">🔗 YouTube App / Browser</option>
+                            <option value="smarttube">📺 SmartTube (Android TV)</option>
+                            <option value="tizentube">📺 TizenTube Cobalt (Samsung TV)</option>
+                        </select>
+                    </div>
+                    <span id="playerDescription" class="toggle-description" style="margin-top: 6px; display: block; font-size: 0.82rem; color: #a0aec0;">
+                        Choose how to open trailers: internal player or external app (SmartTube, YouTube)
+                    </span>
+                </div>
+
                 <div class="form-group">
                     <label class="form-label">🔗 External Link</label>
                     <div class="toggle-container">
@@ -806,6 +821,9 @@
 
     <script>
         const languageSelect = document.getElementById('languageSelect');
+        const playerSelect = document.getElementById('playerSelect');
+        const playerLabel = document.getElementById('playerLabel');
+        const playerDescription = document.getElementById('playerDescription');
         const externalLinkToggle = document.getElementById('externalLinkToggle');
         const recapToggle = document.getElementById('recapToggle');
         const onlyRecapsToggle = document.getElementById('onlyRecapsToggle');
@@ -896,17 +914,47 @@
             'hu-HU': 'Csak összefoglalók mutatása, előzetesek nélkül'
         };
 
+        const playerDescriptions = {
+            'en-US': 'Choose how to open trailers: internal player or external app (SmartTube, YouTube)',
+            'it-IT': 'Scegli come aprire i trailer: player interno o app esterna (SmartTube, YouTube)',
+            'es-MX': 'Elige cómo abrir los trailers: reproductor interno o app externa (SmartTube, YouTube)',
+            'es-ES': 'Elige cómo abrir los trailers: reproductor interno o app externa (SmartTube, YouTube)',
+            'pt-BR': 'Escolha como abrir trailers: player interno ou app externo (SmartTube, YouTube)',
+            'de-DE': 'Wähle den Player für Trailer: interner Player oder externe App (SmartTube, YouTube)',
+            'fr-FR': 'Choisissez le lecteur pour les bandes-annonces : lecteur interne ou externe'
+        };
+
         function updateDescription() {
             const selectedLang = languageSelect.value;
             toggleDescription.textContent = translations[selectedLang] || translations['en-US'];
             recapDescription.textContent = recapTranslations[selectedLang] || recapTranslations['en-US'];
             onlyRecapsDescription.textContent = onlyRecapsTranslations[selectedLang] || onlyRecapsTranslations['en-US'];
+            if (playerDescription) {
+                playerDescription.textContent = playerDescriptions[selectedLang] || playerDescriptions['en-US'];
+            }
             if (kofiText) {
                 kofiText.textContent = kofiTranslations[selectedLang] || kofiTranslations['en-US'];
             }
         }
 
         languageSelect.addEventListener('change', updateDescription);
+
+        // Sync player target and external link toggle
+        playerSelect.addEventListener('change', () => {
+            if (playerSelect.value !== 'internal') {
+                externalLinkToggle.checked = true;
+            } else {
+                externalLinkToggle.checked = false;
+            }
+        });
+
+        externalLinkToggle.addEventListener('change', () => {
+            if (externalLinkToggle.checked && playerSelect.value === 'internal') {
+                playerSelect.value = 'youtube';
+            } else if (!externalLinkToggle.checked) {
+                playerSelect.value = 'internal';
+            }
+        });
 
         // Handle recap toggles dependency
         recapToggle.addEventListener('change', () => {
@@ -926,27 +974,55 @@
             onlyRecapsToggle.closest('.form-group').style.opacity = '0.5';
         }
 
+        // Pre-fill existing configuration from URL path if available
+        try {
+            const pathSegments = window.location.pathname.split('/').filter(Boolean);
+            if (pathSegments.length > 0 && pathSegments[0] !== 'configure') {
+                let raw = decodeURIComponent(pathSegments[0]);
+                let cfg = null;
+                try { cfg = JSON.parse(raw); } catch (e) { }
+                if (!cfg && (raw.includes('=') || raw.includes('&'))) {
+                    cfg = {};
+                    raw.split('&').forEach(p => {
+                        const [k, v] = p.split('=');
+                        if (k === 'lang' || k === 'language') cfg.language = v;
+                        else if (k === 'external' || k === 'externalLink') cfg.externalLink = (v === 'true');
+                        else if (k === 'recap' || k === 'showRecap') cfg.showRecap = (v === 'true');
+                        else if (k === 'onlyRecaps') cfg.onlyRecaps = (v === 'true');
+                        else if (k === 'player' || k === 'playerTarget') cfg.playerTarget = v;
+                    });
+                }
+                if (cfg) {
+                    if (cfg.language) languageSelect.value = cfg.language;
+                    if (cfg.playerTarget) {
+                        playerSelect.value = cfg.playerTarget;
+                        if (cfg.playerTarget !== 'internal') externalLinkToggle.checked = true;
+                    } else if (cfg.externalLink) {
+                        playerSelect.value = 'youtube';
+                        externalLinkToggle.checked = true;
+                    }
+                    if (cfg.showRecap) recapToggle.checked = true;
+                    if (cfg.onlyRecaps) onlyRecapsToggle.checked = true;
+                }
+            }
+        } catch (e) { }
+
         function getConfig() {
             const lang = languageSelect.value;
-            const external = externalLinkToggle.checked;
+            const player = playerSelect.value;
+            const external = player !== 'internal' || externalLinkToggle.checked;
             const recap = recapToggle.checked;
             const onlyRecaps = onlyRecapsToggle.checked;
 
-            const params = [];
-            params.push(`lang=${encodeURIComponent(lang)}`);
+            const configObj = {
+                language: lang,
+                playerTarget: player,
+                externalLink: external,
+                showRecap: recap,
+                onlyRecaps: onlyRecaps
+            };
 
-            if (external) {
-                params.push('external=true');
-            }
-
-            if (recap) {
-                params.push('recap=true');
-                if (onlyRecaps) {
-                    params.push('onlyRecaps=true');
-                }
-            }
-
-            return params.join('&');
+            return encodeURIComponent(JSON.stringify(configObj));
         }
 
         function getManifestUrl() {

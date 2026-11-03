@@ -1,12 +1,14 @@
 /**
  * Kitsu ID to TMDB ID Converter
- * Primary: Fribb anime-lists JSON (cached 6 hours)
- * Fallback: API chain (Kitsu Mappings API → TMDB Find API)
+ * Primary: anime.stremio-italia.eu API
+ * Secondary: Fribb anime-lists JSON (cached 6 hours)
+ * Tertiary: API chain (Kitsu Mappings API → TMDB Find API)
  */
 
 const fetch = require('node-fetch');
 
-const TMDB_KEY = process.env.TMDB_KEY;
+const TMDB_KEY = process.env.TMDB_KEY || 'ad0f7351455041d8c9c0d4370a4b5fa5';
+const STREMIO_ITALIA_BASE = 'https://anime.stremio-italia.eu/kitsu';
 const FRIBB_URL = 'https://cdn.jsdelivr.net/gh/Fribb/anime-lists@master/anime-list-full.json';
 const CACHE_TTL = 6 * 60 * 60 * 1000; // 6 hours in milliseconds
 const DEFAULT_TIMEOUT_MS = 8000;
@@ -25,8 +27,103 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = DEFAULT_TIMEOUT_M
 let fribbCache = {
     data: null,
     timestamp: 0,
-    loading: null // Promise to prevent duplicate fetches
+    loading: null
 };
+
+/**
+ * Extract season number from title or slug string
+ */
+function extractSeason(title = '', slug = '') {
+    const text = `${title} ${slug}`;
+
+    const seasonMatch = text.match(/(?:season|stagione|temporada|staffel|saison)\s*(\d+)/i) ||
+                        text.match(/(\d+)(?:st|nd|rd|th)\s+season/i) ||
+                        text.match(/\bS(\d+)\b/i);
+
+    if (seasonMatch) {
+        const s = parseInt(seasonMatch[1], 10);
+        if (s > 0) return s;
+    }
+
+    // Trailing number check (e.g., "KonoSuba 2", "Mob Psycho 100 II")
+    const romanMatch = text.match(/\b(II|III|IV|V)\b/i);
+    if (romanMatch) {
+        const romanMap = { II: 2, III: 3, IV: 4, V: 5 };
+        return romanMap[romanMatch[1].toUpperCase()];
+    }
+
+    const trailingNum = title.trim().match(/\s+(\d+)$/);
+    if (trailingNum) {
+        const s = parseInt(trailingNum[1], 10);
+        if (s > 1 && s <= 20) return s;
+    }
+
+    return 1;
+}
+
+/**
+ * Primary: Resolve Kitsu ID using anime.stremio-italia.eu
+ */
+async function resolveWithStremioItalia(kitsuId) {
+    const url = `${STREMIO_ITALIA_BASE}/${kitsuId}`;
+    console.log(`[KitsuProvider] Querying anime.stremio-italia.eu for Kitsu ${kitsuId}...`);
+
+    try {
+        const res = await fetchWithTimeout(url, {
+            headers: {
+                'User-Agent': 'Streailer/1.5.0',
+                'Accept': 'application/json'
+            }
+        });
+
+        if (!res.ok) {
+            console.log(`[KitsuProvider] anime.stremio-italia.eu returned ${res.status}`);
+            return null;
+        }
+
+        const data = await res.json();
+        if (!data || !data.ok || !data.mappings?.ids) {
+            return null;
+        }
+
+        const tmdbRaw = data.mappings.ids.tmdb;
+        const imdbId = data.mappings.ids.imdb || null;
+        const tvdbId = data.mappings.ids.tvdb ? parseInt(data.mappings.ids.tvdb, 10) : undefined;
+        const canonicalTitle = data.kitsu?.canonicalTitle || data.kitsu?.titles?.en || data.kitsu?.titles?.en_jp || '';
+        const slug = data.kitsu?.slug || '';
+        const subtype = (data.kitsu?.subtype || '').toUpperCase();
+        const mediaType = subtype === 'MOVIE' ? 'movie' : 'series';
+
+        let tmdbId = null;
+        if (typeof tmdbRaw === 'number') {
+            tmdbId = tmdbRaw;
+        } else if (typeof tmdbRaw === 'string' && tmdbRaw.trim() !== '') {
+            tmdbId = parseInt(tmdbRaw, 10);
+        } else if (typeof tmdbRaw === 'object' && tmdbRaw !== null) {
+            tmdbId = tmdbRaw.tv || tmdbRaw.movie || null;
+        }
+
+        if (!tmdbId || isNaN(tmdbId)) {
+            return null;
+        }
+
+        const season = mediaType === 'series' ? extractSeason(canonicalTitle, slug) : undefined;
+
+        console.log(`[KitsuProvider] ✓ anime.stremio-italia.eu found: Kitsu ${kitsuId} → TMDB ${tmdbId} ("${canonicalTitle}", Season: ${season || 'N/A'})`);
+
+        return {
+            tmdbId,
+            imdbId,
+            tvdbId,
+            season,
+            type: mediaType,
+            title: canonicalTitle
+        };
+    } catch (e) {
+        console.warn(`[KitsuProvider] anime.stremio-italia.eu error: ${e.message}`);
+        return null;
+    }
+}
 
 /**
  * Load Fribb anime-lists JSON (cached for 6 hours)
@@ -34,22 +131,19 @@ let fribbCache = {
 async function loadFribbData() {
     const now = Date.now();
 
-    // Return cached data if still valid
     if (fribbCache.data && (now - fribbCache.timestamp) < CACHE_TTL) {
         return fribbCache.data;
     }
 
-    // If already loading, wait for it
     if (fribbCache.loading) {
         return fribbCache.loading;
     }
 
-    // Start loading
     console.log('[KitsuProvider] Downloading Fribb anime-lists...');
     fribbCache.loading = (async () => {
         try {
             const response = await fetchWithTimeout(FRIBB_URL, {
-                headers: { 'User-Agent': 'Streailer/1.0' }
+                headers: { 'User-Agent': 'Streailer/1.5.0' }
             });
 
             if (!response.ok) {
@@ -74,7 +168,7 @@ async function loadFribbData() {
 }
 
 /**
- * Search Fribb data for Kitsu ID
+ * Search Fribb data for Kitsu ID with support for modern schema
  */
 async function searchFribb(kitsuId) {
     const data = await loadFribbData();
@@ -84,11 +178,44 @@ async function searchFribb(kitsuId) {
     const entry = data.find(item => item.kitsu_id === kitsuIdNum);
 
     if (entry && entry.themoviedb_id) {
-        console.log(`[KitsuProvider] Fribb found: Kitsu ${kitsuId} → TMDB ${entry.themoviedb_id}`);
+        let tmdbId = null;
+        let mediaType = (entry.type || '').toUpperCase() === 'MOVIE' ? 'movie' : 'series';
+
+        if (typeof entry.themoviedb_id === 'object' && entry.themoviedb_id !== null) {
+            if (entry.themoviedb_id.tv) {
+                tmdbId = entry.themoviedb_id.tv;
+                mediaType = 'series';
+            } else if (entry.themoviedb_id.movie) {
+                tmdbId = entry.themoviedb_id.movie;
+                mediaType = 'movie';
+            }
+        } else {
+            tmdbId = parseInt(entry.themoviedb_id, 10);
+        }
+
+        if (!tmdbId || isNaN(tmdbId)) return null;
+
+        let season = undefined;
+        if (mediaType === 'series') {
+            if (entry.season && typeof entry.season === 'object') {
+                season = entry.season.tmdb || entry.season.tvdb || 1;
+            } else if (typeof entry.season === 'number') {
+                season = entry.season;
+            } else {
+                season = 1;
+            }
+        }
+
+        const imdbId = Array.isArray(entry.imdb_id) ? entry.imdb_id[0] : (entry.imdb_id || null);
+        const tvdbId = entry.tvdb_id || entry.thetvdb_id || null;
+
+        console.log(`[KitsuProvider] Fribb found: Kitsu ${kitsuId} → TMDB ${tmdbId} (Season: ${season || 'N/A'})`);
         return {
-            tmdbId: entry.themoviedb_id,
-            imdbId: entry.imdb_id,
-            tvdbId: entry.thetvdb_id
+            tmdbId,
+            imdbId,
+            tvdbId,
+            season,
+            type: mediaType
         };
     }
 
@@ -103,12 +230,11 @@ async function apiChainFallback(kitsuId, language) {
     console.log(`[KitsuProvider] API Chain fallback for Kitsu ${kitsuId}`);
 
     try {
-        // Step 1: Get mappings from Kitsu
         const kitsuUrl = `https://kitsu.io/api/edge/anime/${kitsuId}/mappings`;
         const kitsuResponse = await fetchWithTimeout(kitsuUrl, {
             headers: {
                 'Accept': 'application/vnd.api+json',
-                'User-Agent': 'Streailer/1.0'
+                'User-Agent': 'Streailer/1.5.0'
             }
         });
 
@@ -118,8 +244,6 @@ async function apiChainFallback(kitsuId, language) {
         }
 
         const kitsuData = await kitsuResponse.json();
-
-        // Step 2: Extract external IDs
         let externalId = null;
         let externalSource = null;
 
@@ -140,19 +264,14 @@ async function apiChainFallback(kitsuId, language) {
             }
         }
 
-        if (!externalId) {
-            console.log(`[KitsuProvider] No external mapping for Kitsu ${kitsuId}`);
+        if (!externalId || !TMDB_KEY) {
             return null;
         }
 
-        console.log(`[KitsuProvider] Found ${externalSource}: ${externalId}`);
-
-        // Step 3: TMDB Find
         const tmdbUrl = `https://api.themoviedb.org/3/find/${externalId}?api_key=${TMDB_KEY}&external_source=${externalSource}&language=${language}`;
         const tmdbResponse = await fetchWithTimeout(tmdbUrl);
 
         if (!tmdbResponse.ok) {
-            console.log(`[KitsuProvider] TMDB API error: ${tmdbResponse.status}`);
             return null;
         }
 
@@ -160,12 +279,12 @@ async function apiChainFallback(kitsuId, language) {
 
         if (tmdbData.tv_results && tmdbData.tv_results.length > 0) {
             const result = tmdbData.tv_results[0];
-            return { tmdbId: result.id, type: 'series', title: result.name };
+            return { tmdbId: result.id, type: 'series', season: 1, title: result.name };
         }
 
         if (tmdbData.movie_results && tmdbData.movie_results.length > 0) {
             const result = tmdbData.movie_results[0];
-            return { tmdbId: result.id, type: 'movie', title: result.title };
+            return { tmdbId: result.id, type: 'movie', season: undefined, title: result.title };
         }
 
         return null;
@@ -176,47 +295,61 @@ async function apiChainFallback(kitsuId, language) {
 }
 
 /**
- * Convert Kitsu ID to TMDB ID
- * Primary: Fribb (cached 6h) | Fallback: API Chain
+ * Convert Kitsu ID to TMDB ID with season support
+ * Priority: 1) anime.stremio-italia.eu -> 2) Fribb -> 3) API Chain
  */
 async function kitsuToTmdb(kitsuId, language = 'en-US') {
     console.log(`[KitsuProvider] Converting Kitsu ID: ${kitsuId}`);
 
-    // Try Fribb first
-    const fribbResult = await searchFribb(kitsuId);
-    if (fribbResult && fribbResult.tmdbId) {
-        // Get title from TMDB
-        try {
-            const url = `https://api.themoviedb.org/3/tv/${fribbResult.tmdbId}?api_key=${TMDB_KEY}&language=${language}`;
-            const response = await fetchWithTimeout(url);
-            const data = await response.json();
-
-            if (data.name) {
-                console.log(`[KitsuProvider] ✓ Fribb: Kitsu ${kitsuId} → TMDB ${fribbResult.tmdbId} ("${data.name}")`);
-                return { tmdbId: fribbResult.tmdbId, type: 'series', title: data.name };
-            }
-        } catch (e) {
-            // Try as movie
+    // Level 1: anime.stremio-italia.eu
+    const italiaResult = await resolveWithStremioItalia(kitsuId);
+    if (italiaResult && italiaResult.tmdbId) {
+        // If TMDB title lookup is available in the desired language, fetch it
+        if (TMDB_KEY) {
             try {
-                const url = `https://api.themoviedb.org/3/movie/${fribbResult.tmdbId}?api_key=${TMDB_KEY}&language=${language}`;
+                const mediaPath = italiaResult.type === 'movie' ? 'movie' : 'tv';
+                const url = `https://api.themoviedb.org/3/${mediaPath}/${italiaResult.tmdbId}?api_key=${TMDB_KEY}&language=${language}`;
                 const response = await fetchWithTimeout(url);
-                const data = await response.json();
-
-                if (data.title) {
-                    console.log(`[KitsuProvider] ✓ Fribb: Kitsu ${kitsuId} → TMDB ${fribbResult.tmdbId} ("${data.title}")`);
-                    return { tmdbId: fribbResult.tmdbId, type: 'movie', title: data.title };
+                if (response.ok) {
+                    const data = await response.json();
+                    const localizedTitle = data.title || data.name;
+                    if (localizedTitle) {
+                        italiaResult.title = localizedTitle;
+                    }
                 }
-            } catch (e2) { }
+            } catch (e) {
+                // Keep canonical title
+            }
         }
-
-        // Return without title if TMDB lookup failed
-        return { tmdbId: fribbResult.tmdbId, type: 'series', title: '' };
+        return italiaResult;
     }
 
-    // Fallback to API Chain
+    // Level 2: Fribb anime-lists
+    const fribbResult = await searchFribb(kitsuId);
+    if (fribbResult && fribbResult.tmdbId) {
+        let title = '';
+        if (TMDB_KEY) {
+            try {
+                const mediaPath = fribbResult.type === 'movie' ? 'movie' : 'tv';
+                const url = `https://api.themoviedb.org/3/${mediaPath}/${fribbResult.tmdbId}?api_key=${TMDB_KEY}&language=${language}`;
+                const response = await fetchWithTimeout(url);
+                if (response.ok) {
+                    const data = await response.json();
+                    title = data.title || data.name || '';
+                }
+            } catch (e) { }
+        }
+        return {
+            tmdbId: fribbResult.tmdbId,
+            type: fribbResult.type,
+            season: fribbResult.season,
+            title
+        };
+    }
+
+    // Level 3: API Chain fallback
     const apiResult = await apiChainFallback(kitsuId, language);
     if (apiResult) {
-        console.log(`[KitsuProvider] ✓ API Chain: Kitsu ${kitsuId} → TMDB ${apiResult.tmdbId} ("${apiResult.title}")`);
         return apiResult;
     }
 

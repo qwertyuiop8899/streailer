@@ -7,7 +7,7 @@ const fetch = require('node-fetch');
 
 // TMDB API configuration
 const TMDB_BASE = 'https://api.themoviedb.org/3';
-const TMDB_KEY = process.env.TMDB_KEY;
+const TMDB_KEY = process.env.TMDB_KEY || 'ad0f7351455041d8c9c0d4370a4b5fa5';
 const DEFAULT_TIMEOUT_MS = 8000;
 const MAX_SEASON = 50;
 
@@ -270,12 +270,49 @@ async function searchRecapVideo(seriesName, season, provider, language = 'it-IT'
     return null;
 }
 
+function formatStreamTarget(ytId, playerTarget = 'internal', useExternalLink = false) {
+    let target = playerTarget || 'internal';
+    if (target === 'internal' && (useExternalLink === true || useExternalLink === 'true')) {
+        target = 'youtube';
+    }
+
+    if (target === 'smarttube') {
+        return {
+            streamProps: {
+                externalUrl: `intent://www.youtube.com/watch?v=${ytId}#Intent;scheme=https;package=com.teamsmart.videomanager.tv;end`
+            },
+            prefix: '📺 '
+        };
+    } else if (target === 'tizentube') {
+        return {
+            streamProps: {
+                externalUrl: `intent://www.youtube.com/watch?v=${ytId}#Intent;scheme=https;package=io.gh.reisxd.tizentube.cobalt;end`
+            },
+            prefix: '📺 '
+        };
+    } else if (target === 'youtube') {
+        return {
+            streamProps: {
+                externalUrl: `https://www.youtube.com/watch?v=${ytId}`
+            },
+            prefix: '🔗 '
+        };
+    } else {
+        return {
+            streamProps: {
+                ytId
+            },
+            prefix: ''
+        };
+    }
+}
+
 /**
  * Get recap streams for a TV series
  * Returns array of recap streams for seasons 1 to (currentSeason - 1)
  * Order: Previous season first, then 1, 2, 3... up to (currentSeason - 2)
  */
-async function getRecapStreams(tmdbId, seriesName, currentSeason, language = 'it-IT', useExternalLink = false, imdbId = null) {
+async function getRecapStreams(tmdbId, seriesName, currentSeason, language = 'it-IT', useExternalLink = false, imdbId = null, playerTarget = 'internal') {
     // Only for season >= 2, and max to prevent DoS
     if (currentSeason < 2 || currentSeason > MAX_SEASON) {
         console.log(`[RecapProvider] Season ${currentSeason} - outside supported range (2-${MAX_SEASON})`);
@@ -301,9 +338,8 @@ async function getRecapStreams(tmdbId, seriesName, currentSeason, language = 'it
 
     const prevRecap = await searchRecapVideo(seriesName, previousSeason, provider, language);
     if (prevRecap) {
-        const recapStreamName = useExternalLink
-            ? `🔗 📝 Recap ${recapT.season} ${previousSeason}`
-            : `📝 Recap ${recapT.season} ${previousSeason}`;
+        const targetFormat = formatStreamTarget(prevRecap.ytId, playerTarget, useExternalLink);
+        const recapStreamName = `${targetFormat.prefix}📝 Recap ${recapT.season} ${previousSeason}`;
 
         const recapStream = {
             name: recapStreamName,
@@ -311,14 +347,9 @@ async function getRecapStreams(tmdbId, seriesName, currentSeason, language = 'it
             behaviorHints: {
                 notWebReady: true,
                 bingeGroup: 'recap'
-            }
+            },
+            ...targetFormat.streamProps
         };
-
-        if (useExternalLink) {
-            recapStream.externalUrl = `https://www.youtube.com/watch?v=${prevRecap.ytId}`;
-        } else {
-            recapStream.ytId = prevRecap.ytId;
-        }
 
         streams.push(recapStream);
     }
@@ -328,9 +359,8 @@ async function getRecapStreams(tmdbId, seriesName, currentSeason, language = 'it
         console.log(`[RecapProvider] Searching recap for Season ${s}`);
         const recap = await searchRecapVideo(seriesName, s, provider, language);
         if (recap) {
-            const recapStreamName = useExternalLink
-                ? `🔗 📝 Recap ${recapT.season} ${s}`
-                : `📝 Recap ${recapT.season} ${s}`;
+            const targetFormat = formatStreamTarget(recap.ytId, playerTarget, useExternalLink);
+            const recapStreamName = `${targetFormat.prefix}📝 Recap ${recapT.season} ${s}`;
 
             const recapStream = {
                 name: recapStreamName,
@@ -338,14 +368,9 @@ async function getRecapStreams(tmdbId, seriesName, currentSeason, language = 'it
                 behaviorHints: {
                     notWebReady: true,
                     bingeGroup: 'recap'
-                }
+                },
+                ...targetFormat.streamProps
             };
-
-            if (useExternalLink) {
-                recapStream.externalUrl = `https://www.youtube.com/watch?v=${recap.ytId}`;
-            } else {
-                recapStream.ytId = recap.ytId;
-            }
 
             streams.push(recapStream);
         }
@@ -359,7 +384,7 @@ async function getRecapStreams(tmdbId, seriesName, currentSeason, language = 'it
  * Search for a generic recap video (for Kitsu anime where seasons are separate entries)
  * Returns a single recap stream with spoiler warning
  */
-async function searchGenericRecap(seriesName, language = 'it-IT', useExternalLink = false) {
+async function searchGenericRecap(seriesName, language = 'it-IT', useExternalLink = false, playerTarget = 'internal') {
     console.log(`[RecapProvider] Searching generic recap for "${seriesName}"`);
 
     const recapT = getRecapTranslation(language);
@@ -376,10 +401,8 @@ async function searchGenericRecap(seriesName, language = 'it-IT', useExternalLin
 
     console.log(`[RecapProvider] ✓ Generic recap found: "${result.title}"`);
 
-    // Create stream with spoiler warning
-    const recapStreamName = useExternalLink
-        ? `🔗 ⚠️ Recap (Spoiler Alert!)`
-        : `⚠️ Recap (Spoiler Alert!)`;
+    const targetFormat = formatStreamTarget(result.ytId, playerTarget, useExternalLink);
+    const recapStreamName = `${targetFormat.prefix}⚠️ Recap (Spoiler Alert!)`;
 
     const recapStream = {
         name: recapStreamName,
@@ -387,14 +410,9 @@ async function searchGenericRecap(seriesName, language = 'it-IT', useExternalLin
         behaviorHints: {
             notWebReady: true,
             bingeGroup: 'recap'
-        }
+        },
+        ...targetFormat.streamProps
     };
-
-    if (useExternalLink) {
-        recapStream.externalUrl = `https://www.youtube.com/watch?v=${result.ytId}`;
-    } else {
-        recapStream.ytId = result.ytId;
-    }
 
     return recapStream;
 }

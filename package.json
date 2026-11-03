@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "node index.js --launch"
+    "dev": "node index.js --launch",
+    "test": "node tests/test-all.js"
   },
   "keywords": [
     "stremio",
