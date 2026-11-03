@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.6](https://github.com/qwertyuiop8899/streailer/compare/v1.0.5...v1.0.6) (2026-11-03)
+
+
+### Bug Fixes
+
+* resolve language reset, Kitsu anime season mapping, and Android TV player options ([91fad26](https://github.com/qwertyuiop8899/streailer/commit/91fad26be54edb9ffb3f0377ec9366e0dacc40b2))
+
 ## [1.0.5](https://github.com/qwertyuiop8899/streailer/compare/v1.0.4...v1.0.5) (2026-09-07)
 
 
