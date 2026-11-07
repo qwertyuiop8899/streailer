@@ -40,6 +40,23 @@ With the new **External Link** option, trailers open directly in your device's *
 3️⃣ TMDB (English)          → Fallback trailer
 ```
 
+The optional **Strict Trailer Language** setting requires language evidence from
+TMDB metadata or the YouTube title and disables the TMDB English fallback.
+It defaults to off for existing installations. Configure it on the installation
+page or pass `strictLanguage=true` in a query-string configuration.
+
+YouTube search evaluates multiple matching videos and rejects explicit language
+mismatches. Brazilian Portuguese searches prefer dubbed trailers, then localized
+trailers and Portuguese subtitles. Availability checks use YouTube's published
+country list for the country in the selected locale (for example, `BR` for `pt-BR`)
+and skip known removed/private videos. Missing metadata or network failures leave
+availability unknown. Titles and metadata cannot guarantee the spoken language
+or playback from every user's location.
+
+Run `npm run test:regression` for deterministic selection and HTTP configuration
+tests. `npm test` also runs the existing live integration suite, which requires
+TMDB, YouTube, and the Kitsu mapping service to be reachable.
+
 ## 📺 Supported Languages
 
 | Tier 1 - Dubbing Markets | Tier 2 - Expansion |

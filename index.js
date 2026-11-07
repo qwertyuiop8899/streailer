@@ -61,6 +61,11 @@ const manifest = {
             required: true
         },
         {
+            key: 'strictLanguage',
+            type: 'checkbox',
+            title: 'Strict Trailer Language (Disable English Fallback)'
+        },
+        {
             key: 'playerTarget',
             type: 'select',
             title: 'Player Target / Modalità Riproduzione',
@@ -115,6 +120,7 @@ builder.defineStreamHandler(async ({ type, id, config }) => {
         const useExternalLink = playerTarget !== 'internal' || config?.externalLink === 'true' || config?.externalLink === true;
         const showRecap = config?.showRecap === 'true' || config?.showRecap === true;
         const onlyRecaps = config?.onlyRecaps === 'true' || config?.onlyRecaps === true;
+        const strictLanguage = config?.strictLanguage === 'true' || config?.strictLanguage === true;
 
         // Parse ID (supports IMDb tt..., TMDB tmdb:12345, or direct TMDB numeric)
         let imdbId = null;
@@ -205,7 +211,8 @@ builder.defineStreamHandler(async ({ type, id, config }) => {
                 tmdbId,
                 language,
                 useExternalLink,
-                playerTarget
+                playerTarget,
+                strictLanguage
             );
 
             // Get recap streams for TV series if enabled
@@ -377,8 +384,8 @@ app.use('/', addonRouter);
 // Start server
 const port = process.env.PORT || 7020;
 const host = '0.0.0.0';
-app.listen(port, host, () => {
-    console.log(`[Streailer] Addon running at http://${host}:${port}`);
+const server = app.listen(port, host, () => {
+    console.log(`[Streailer] Addon running at http://${host}:${server.address().port}`);
     console.log(`[Streailer] Configure: http://${host}:${port}/configure`);
     console.log(`[Streailer] Manifest: http://${host}:${port}/manifest.json`);
 });

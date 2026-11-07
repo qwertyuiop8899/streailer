@@ -735,6 +735,17 @@
                 </div>
 
                 <div class="form-group">
+                    <label class="form-label" for="strictLanguageToggle">Strict Trailer Language</label>
+                    <div class="toggle-container">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="strictLanguageToggle" aria-describedby="strictLanguageDescription">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span id="strictLanguageDescription" class="toggle-description">Require language evidence for trailers and disable English fallback</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
                     <label class="form-label">🔗 External Link</label>
                     <div class="toggle-container">
                         <label class="toggle-switch">
@@ -786,7 +797,7 @@
             </div>
 
             <div class="info-section">
-                <div class="info-title">Trailer Search Flow</div>
+                <div class="info-title">Trailer Search Flow (English fallback optional)</div>
                 <div class="info-flow">
                     <span class="flow-step">🎬 TMDB</span>
                     <span class="flow-arrow">→</span>
@@ -821,6 +832,7 @@
 
     <script>
         const languageSelect = document.getElementById('languageSelect');
+        const strictLanguageToggle = document.getElementById('strictLanguageToggle');
         const playerSelect = document.getElementById('playerSelect');
         const playerLabel = document.getElementById('playerLabel');
         const playerDescription = document.getElementById('playerDescription');
@@ -974,6 +986,13 @@
             onlyRecapsToggle.closest('.form-group').style.opacity = '0.5';
         }
 
+        // Detect a default before restoring a saved language preference.
+        const browserLang = navigator.language;
+        const availableOptions = Array.from(languageSelect.options).map(o => o.value);
+        const browserDefault = availableOptions.find(code => code === browserLang) ||
+            availableOptions.find(code => code.startsWith(browserLang.split('-')[0]));
+        if (browserDefault) languageSelect.value = browserDefault;
+
         // Pre-fill existing configuration from URL path if available
         try {
             const pathSegments = window.location.pathname.split('/').filter(Boolean);
@@ -981,11 +1000,15 @@
                 let raw = decodeURIComponent(pathSegments[0]);
                 let cfg = null;
                 try { cfg = JSON.parse(raw); } catch (e) { }
+                if (!cfg) {
+                    try { cfg = JSON.parse(atob(raw)); } catch (e) { }
+                }
                 if (!cfg && (raw.includes('=') || raw.includes('&'))) {
                     cfg = {};
                     raw.split('&').forEach(p => {
                         const [k, v] = p.split('=');
                         if (k === 'lang' || k === 'language') cfg.language = v;
+                        else if (k === 'strictLanguage') cfg.strictLanguage = (v === 'true');
                         else if (k === 'external' || k === 'externalLink') cfg.externalLink = (v === 'true');
                         else if (k === 'recap' || k === 'showRecap') cfg.showRecap = (v === 'true');
                         else if (k === 'onlyRecaps') cfg.onlyRecaps = (v === 'true');
@@ -994,6 +1017,7 @@
                 }
                 if (cfg) {
                     if (cfg.language) languageSelect.value = cfg.language;
+                    strictLanguageToggle.checked = cfg.strictLanguage === true || cfg.strictLanguage === 'true';
                     if (cfg.playerTarget) {
                         playerSelect.value = cfg.playerTarget;
                         if (cfg.playerTarget !== 'internal') externalLinkToggle.checked = true;
@@ -1016,6 +1040,7 @@
 
             const configObj = {
                 language: lang,
+                strictLanguage: strictLanguageToggle.checked,
                 playerTarget: player,
                 externalLink: external,
                 showRecap: recap,
@@ -1064,19 +1089,6 @@
             setTimeout(() => {
                 toast.classList.remove('show');
             }, 3000);
-        }
-
-        // Set default language based on browser
-        const browserLang = navigator.language;
-        const availableOptions = Array.from(languageSelect.options).map(o => o.value);
-        if (availableOptions.includes(browserLang)) {
-            languageSelect.value = browserLang;
-        } else {
-            const prefix = browserLang.split('-')[0];
-            const match = availableOptions.find(o => o.startsWith(prefix));
-            if (match) {
-                languageSelect.value = match;
-            }
         }
 
         // Update description after language detection

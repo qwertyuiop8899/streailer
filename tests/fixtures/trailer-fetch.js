@@ -1,0 +1,63 @@
+const assert = require('assert');
+
+const ids = { german: 'MbyygcWY7yY', dubbed: 'dubbed00001', subtitled: 'subbed00001', unknown: 'unknown0001', english: 'english0001' };
+const german = { ytId: ids.german, title: 'PRIMETIME Trailer German Deutsch (2026) Robert Pattinson' };
+const dubbed = { ytId: ids.dubbed, title: 'Primetime | Trailer Dublado' };
+const subtitled = { ytId: ids.subtitled, title: 'Primetime | Trailer Legendado PT-BR' };
+
+function searchHtml(candidates) {
+    return '<script>var ytInitialData = ' + JSON.stringify({
+        contents: { twoColumnSearchResultsRenderer: { primaryContents: {
+            sectionListRenderer: { contents: [{ itemSectionRenderer: {
+                contents: candidates.map(v => ({ videoRenderer: { videoId: v.ytId, title: { runs: [{ text: v.title }] } } }))
+            } }] }
+        } } }
+    }) + ';</script>';
+}
+
+function playerHtml(countries = ['BR', 'US', 'IT', 'PT', 'FR'], reason = '') {
+    return '<script>var ytInitialPlayerResponse = ' + JSON.stringify({
+        playabilityStatus: { status: reason ? 'ERROR' : 'OK', reason },
+        microformat: { playerMicroformatRenderer: { availableCountries: countries } }
+    }) + ';</script>';
+}
+
+let state;
+function reset(overrides = {}) {
+    state = { candidates: [german, subtitled, dubbed, { ytId: ids.unknown, title: 'Primetime Official Trailer' }], localized: [], english: [], watch: {}, calls: [], ...overrides };
+    return state;
+}
+reset();
+
+function response(value, status = 200) {
+    return { ok: status === 200, status, json: async () => value, text: async () => value };
+}
+
+async function fakeFetch(input) {
+    const url = new URL(input);
+    state.calls.push(url);
+    if (url.hostname === 'api.themoviedb.org') {
+        if (url.pathname.includes('/find/')) return response({ movie_results: [{ id: 123, title: 'Primetime' }], tv_results: [{ id: 123, name: 'Primetime' }] });
+        if (url.pathname.endsWith('/videos')) {
+            const videos = url.searchParams.get('language') === 'en-US' ? state.english : state.localized;
+            return response({ results: typeof videos === 'function' ? videos(url) : videos });
+        }
+        return response({ title: 'Primetime', name: 'Primetime' });
+    }
+    assert.strictEqual(url.hostname, 'www.youtube.com', 'Unexpected network access');
+    if (url.pathname === '/results') {
+        if (state.searchError) throw new Error('Search failed');
+        const candidates = typeof state.candidates === 'function' ? state.candidates(url) : state.candidates;
+        return response(state.html === undefined ? searchHtml(candidates) : state.html, state.searchStatus || 200);
+    }
+    assert.strictEqual(url.pathname, '/watch');
+    const watch = state.watch[url.searchParams.get('v')];
+    if (watch instanceof Error) throw watch;
+    return response(watch === undefined ? playerHtml() : watch);
+}
+
+// Preloading this file also isolates the real HTTP server from external services.
+const fetchPath = require.resolve('node-fetch');
+require(fetchPath);
+require.cache[fetchPath].exports = fakeFetch;
+module.exports = { ids, german, dubbed, subtitled, reset, searchHtml, playerHtml };

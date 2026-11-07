@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node index.js",
     "dev": "node index.js --launch",
-    "test": "node tests/test-all.js"
+    "test": "npm run test:regression && node tests/test-all.js",
+    "test:regression": "node tests/test-regression.js"
   },
   "keywords": [
     "stremio",
