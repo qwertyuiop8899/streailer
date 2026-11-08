@@ -171,6 +171,19 @@ async function run() {
         reset({ candidates: [dubbed], watch: { [ids.dubbed]: '<html>Consent required</html>' } });
         assert.deepStrictEqual(await trailers({ strict: true }), []);
     });
+    await test('valid Full Movie Trailer phrase is not confused with full movie playback', async () => {
+        reset({ candidates: [
+            { ytId: ids.subtitled, title: 'Primetime (2026) Full Movie Trailer Dublado', durationSeconds: 135 }
+        ] });
+        assert.strictEqual((await trailers({ strict: true }))[0].ytId, ids.subtitled);
+    });
+    await test('eligible trailer beyond ten unrelated search hits remains discoverable', async () => {
+        const noise = Array.from({ length: 10 }, (_, i) => ({
+            ytId: 'noise00000' + i, title: 'Unrelated Movie Official Trailer (2026)', durationSeconds: 120
+        }));
+        reset({ candidates: [...noise, subtitled] });
+        assert.strictEqual((await trailers({ strict: true }))[0].ytId, ids.subtitled);
+    });
     await test('invalid IDs and unrelated video titles are rejected', async () => {
         reset({ candidates: [{ ytId: ids.dubbed, title: 'Another Movie Trailer Dublado' }, { ytId: 'bad', title: dubbed.title }], localized: [tmdb('invalid')] });
         assert.deepStrictEqual(await trailers({ strict: true }), []);

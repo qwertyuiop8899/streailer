@@ -4,6 +4,7 @@
  */
 
 const fetch = require('node-fetch');
+const { parseSearchCandidates, normalizeTitle, isAvailableInRegion, playerVideoInfo } = require('./trailerSelection');
 
 // TMDB API configuration
 const TMDB_BASE = 'https://api.themoviedb.org/3';
@@ -97,9 +98,28 @@ function getRecapTranslation(language) {
  */
 function validateVideoTitle(videoTitle, seriesName) {
     if (!videoTitle || !seriesName) return false;
-    const t = videoTitle.toLowerCase();
-    const s = seriesName.toLowerCase();
-    return t.includes(s);
+    const t = ' ' + normalizeTitle(videoTitle) + ' ';
+    const s = ' ' + normalizeTitle(seriesName) + ' ';
+    return s.trim().length > 1 && t.includes(s);
+}
+
+// Recap is a distinct feature from trailers and may be much longer.
+// Reject full episodes and unverified results, but leave generous room for
+// genuine season summaries.
+const configuredRecapDuration = Number(process.env.MAX_RECAP_DURATION_SECONDS);
+const MAX_RECAP_DURATION_SECONDS = Number.isInteger(configuredRecapDuration) &&
+    configuredRecapDuration >= 60 && configuredRecapDuration <= 7200 ? configuredRecapDuration : 3600;
+const RECAP_CUE = /(?:^|\s)(?:recap|recapitulation|recapitulacion|summary|summarized|resumen|resumo|riassunto|zusammenfassung|ozet|skrot|osszefoglalo|samenvatting|previously)(?=\s|$)|総集編|まとめ|あらすじ|要約|содержание|кратко|சுருக்கம்|सारांश/u;
+const EPISODE_OR_MOVIE = /(?:^|\s)(?:(?:episode|episodio|episod|capitulo|ep)\s*0*\d+(?=\s|$)|(?:filme|film|movie|pelicula|episodio|episode)\s+(?:completo|completa|full|entire|complete)|(?:full|entire|complete)\s+(?:film|movie|episode))(?=\s|$)/u;
+const SEASON_MARKER = /(?:^|\s)(?:season|temporada|stagione|staffel|saison|sezon|seizoen|evad|сезон|シーズン|सीज़न|சீசன்)\s*(\d{1,2})(?=\s|$)|(?:^|\s)(\d{1,2})\s*(?:season|temporada|stagione|staffel|saison|sezon|seizoen|evad|сезон|シーズン|सीज़न|சீசன்)(?=\s|$)|(?:^|\s)s(\d{1,2})(?=\s|$)/gu;
+
+function isRelevantRecap(title, seriesName, season = null) {
+    if (!validateVideoTitle(title, seriesName)) return false;
+    const clean = normalizeTitle(title);
+    if (!RECAP_CUE.test(clean) || EPISODE_OR_MOVIE.test(clean)) return false;
+    if (season === null || season === undefined) return true;
+    const seasons = [...clean.matchAll(SEASON_MARKER)].map(match => Number(match[1] || match[2] || match[3]));
+    return seasons.length > 0 && seasons.every(n => n === season);
 }
 
 /**
@@ -107,69 +127,55 @@ function validateVideoTitle(videoTitle, seriesName) {
  * @param {string} query - Search query
  * @param {string} language - Language code (e.g. 'it-IT')
  */
-async function searchYouTubeScraping(query, language = 'en-US') {
+async function searchYouTubeScraping(query, language = 'en-US', seriesName = '', season = null) {
     try {
-        const encodedQuery = encodeURIComponent(query);
-        // Extract country and lang from language code (e.g. 'it-IT' -> gl=IT, hl=it)
         const [lang, country] = language.split('-');
         const gl = country || 'US';
         const hl = lang || 'en';
-        const url = `https://www.youtube.com/results?search_query=${encodedQuery}&gl=${gl}&hl=${hl}`;
+        const url = 'https://www.youtube.com/results?search_query=' + encodeURIComponent(query) +
+            '&gl=' + encodeURIComponent(gl) + '&hl=' + encodeURIComponent(hl);
+        console.log('[RecapProvider] YouTube search: ' + query + ' (gl=' + gl + ', hl=' + hl + ')');
+        const headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Accept-Language': hl + '-' + gl + ',' + hl + ';q=0.9,en;q=0.8'
+        };
+        const response = await fetchWithTimeout(url, { headers });
+        if (!response.ok) return null;
 
-        console.log(`[RecapProvider] YouTube search: ${query} (gl=${gl}, hl=${hl})`);
-
-        const response = await fetchWithTimeout(url, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'Accept-Language': `${hl}-${gl},${hl};q=0.9,en;q=0.8`,
-                'Cookie': `PREF=hl=${hl}&gl=${gl}; CONSENT=YES+`
+        // Keep each title paired with its own videoId; the old independent
+        // regular expressions could combine unrelated titles and IDs.
+        const candidates = parseSearchCandidates(await response.text());
+        const eligible = candidates.filter(candidate =>
+            isRelevantRecap(candidate.title, seriesName, season) && !candidate.live &&
+            (candidate.durationSeconds == null ||
+                candidate.durationSeconds <= MAX_RECAP_DURATION_SECONDS)).slice(0, 5);
+        // Probe in parallel, but choose in YouTube result order. This avoids
+        // stacking five 3-second watch timeouts on every recap query.
+        const checked = await Promise.all(eligible.map(async candidate => {
+            let watched = { durationSeconds: null, live: false };
+            try {
+                const page = await fetchWithTimeout(
+                    'https://www.youtube.com/watch?v=' + candidate.ytId + '&hl=en',
+                    { headers }, 3000);
+                if (page.ok) {
+                    const html = await page.text();
+                    if (!isAvailableInRegion(html, gl)) return null;
+                    watched = playerVideoInfo(html);
+                }
+            } catch (_) {
+                // The result may have a search duration even if the watch
+                // page is rate-limited; only verified durations are accepted.
             }
-        });
-
-        if (response.status !== 200) {
-            console.log('[RecapProvider] YouTube scraping failed:', response.status);
-            return null;
-        }
-
-        const html = await response.text();
-
-        // Extract video ID
-        const videoIdMatch = html.match(/"videoId":"([a-zA-Z0-9_-]{11})"/);
-        if (!videoIdMatch) {
-            console.log('[RecapProvider] No video ID found');
-            return null;
-        }
-
-        const ytId = videoIdMatch[1];
-
-        // Try to extract title
-        let videoTitle = '';
-        const titleMatch = html.match(/"title":\s*{\s*"runs":\s*\[\s*{\s*"text":\s*"([^"]+)"/);
-        if (titleMatch) {
-            videoTitle = titleMatch[1];
-        } else {
-            const simpleTitleMatch = html.match(/"title":\s*"([^"]+)"/);
-            if (simpleTitleMatch) {
-                videoTitle = simpleTitleMatch[1];
-            }
-        }
-
-        if (!videoTitle) {
-            console.log('[RecapProvider] Could not extract title');
-            return null;
-        }
-
-        // Decode HTML entities
-        videoTitle = videoTitle
-            .replace(/\\u0026/g, '&')
-            .replace(/\\"/g, '"')
-            .replace(/\\\\/g, '\\');
-
-        console.log(`[RecapProvider] Found: "${videoTitle}" (${ytId})`);
-        return { ytId, title: videoTitle };
-
+            if (watched.live || (watched.durationSeconds !== null &&
+                watched.durationSeconds > MAX_RECAP_DURATION_SECONDS)) return null;
+            if (watched.durationSeconds === null && candidate.durationSeconds == null) return null;
+            return { ytId: candidate.ytId, title: candidate.title };
+        }));
+        const found = checked.find(Boolean) || null;
+        if (found) console.log('[RecapProvider] Found verified recap: "' + found.title + '" (' + found.ytId + ')');
+        return found;
     } catch (e) {
-        console.error('[RecapProvider] YouTube scraping error:', e);
+        console.error('[RecapProvider] YouTube scraping error:', e.message);
         return null;
     }
 }
@@ -227,7 +233,7 @@ async function searchRecapVideo(seriesName, season, provider, language = 'it-IT'
     // Step 1: Localized with provider + language keyword
     if (provider) {
         const query1 = `${seriesName} ${recapT.recap} ${recapT.season} ${season} ${provider}${langKeyword}`;
-        const result1 = await searchYouTubeScraping(query1, language);
+        const result1 = await searchYouTubeScraping(query1, language, seriesName, season);
         if (result1 && validateVideoTitle(result1.title, seriesName)) {
             console.log(`[RecapProvider] ✓ Found (step 1)`);
             return result1;
@@ -236,7 +242,7 @@ async function searchRecapVideo(seriesName, season, provider, language = 'it-IT'
 
     // Step 2: Localized without provider + language keyword
     const query2 = `${seriesName} ${recapT.recap} ${recapT.season} ${season}${langKeyword}`;
-    const result2 = await searchYouTubeScraping(query2, language);
+    const result2 = await searchYouTubeScraping(query2, language, seriesName, season);
     if (result2 && validateVideoTitle(result2.title, seriesName)) {
         console.log(`[RecapProvider] ✓ Found (step 2)`);
         return result2;
@@ -251,7 +257,7 @@ async function searchRecapVideo(seriesName, season, provider, language = 'it-IT'
     // Step 3: English with provider
     if (provider) {
         const query3 = `${seriesName} recap Season ${season} ${provider}`;
-        const result3 = await searchYouTubeScraping(query3, 'en-US');
+        const result3 = await searchYouTubeScraping(query3, 'en-US', seriesName, season);
         if (result3 && validateVideoTitle(result3.title, seriesName)) {
             console.log(`[RecapProvider] ✓ Found (step 3 EN)`);
             return result3;
@@ -260,7 +266,7 @@ async function searchRecapVideo(seriesName, season, provider, language = 'it-IT'
 
     // Step 4: English without provider
     const query4 = `${seriesName} recap Season ${season}`;
-    const result4 = await searchYouTubeScraping(query4, 'en-US');
+    const result4 = await searchYouTubeScraping(query4, 'en-US', seriesName, season);
     if (result4 && validateVideoTitle(result4.title, seriesName)) {
         console.log(`[RecapProvider] ✓ Found (step 4 EN)`);
         return result4;
@@ -392,7 +398,7 @@ async function searchGenericRecap(seriesName, language = 'it-IT', useExternalLin
 
     // Search without season number
     const query = `${seriesName} ${recapT.recap}${langKeyword}`;
-    const result = await searchYouTubeScraping(query, language);
+    const result = await searchYouTubeScraping(query, language, seriesName);
 
     if (!result) {
         console.log(`[RecapProvider] ✗ No generic recap found for "${seriesName}"`);

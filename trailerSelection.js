@@ -37,7 +37,7 @@ function withoutTitles(title, titles) {
 // commonly used for complete films, reviews and full episodes.
 const TRAILER_CUE = /\b(?:trailer|teaser|preview|promo|promotional|previa|chamada|avance|adelanto|bande annonce|vorschau|anteprima|fragman|zwiastun|voorproefje|elozetes|anons)\b|予告|ティーザー|ट्रेलर|टीजर|प्रोमो|டிரெய்லர்|டீசர்|трейлер|тизер|промо/u;
 const NON_TRAILER_CUE = [
-    /\b(?:(?:full|complete|entire|whole)\s+(?:movie|film|episode|series|season)|(?:movie|film|episode|series|season|filme|episodio|pelicula|serie|temporada)\s+(?:full|complete|completo|completa|inteiro|inteira|entero|entera|integral))\b/u,
+    /\b(?:(?:full|complete|entire|whole)\s+(?:movie|film|episode|series|season)|(?:movie|film|episode|series|season|filme|episodio|pelicula|serie|temporada)\s+(?:full|complete|completo|completa|inteiro|inteira|entero|entera|integral))\b(?!\s+(?:(?:official|oficial|final|new)\s+)?(?:trailer|teaser|preview|previa|chamada)\b)/u,
     /\b(?:review|revisao|resenha|analise|analysis|explained|explicado|recap|resumo|resumen|reaction|reacao|react|gameplay|walkthrough|breakdown|entrevista|interview|making of|behind the scenes|documentary|documentario|critica|spoilers?|ending explained|final explicado|commentary|commentario|recensione|reseña|reaccion|zusammenfassung|reaktion|отзыв|обзор)\b/u,
     /映画全編|全話|全編|本編|完全版|全エピソード|реакция|объяснение|फुल मूवी|पूरी फिल्म|முழு படம்/u
 ];
@@ -176,7 +176,9 @@ function parseSearchCandidates(html) {
         }
     }
     visit(contents);
-    return candidates.slice(0, 10);
+    // Keep enough candidates to survive unrelated top results; only the best
+    // ten eligible videos are probed by selectAvailableTrailer.
+    return candidates.slice(0, 30);
 }
 
 function isAvailableInRegion(html, region) {

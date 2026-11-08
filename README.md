@@ -57,6 +57,19 @@ This deliberately favors missing a trailer over selecting another film with the
 same translated title. Search titles are still third-party metadata, not a
 guarantee about the actual video content.
 
+Scraped YouTube videos must show a trailer/teaser cue, a matching identity,
+and a verified duration of no more than `MAX_TRAILER_DURATION_SECONDS`
+(default: 600 seconds). A phrase such as "Full Movie Trailer" is allowed
+when the video actually fits the duration limit; complete movies, full
+episodes, reviews, and reactions are not. Search extraction considers up to
+30 results, then probes no more than ten eligible candidates.
+
+Recap searches separately validate each result's paired title and video ID,
+series name, requested season and duration, with a default
+`MAX_RECAP_DURATION_SECONDS` of 3600 seconds. This deliberately avoids
+playing unrelated episodes as recaps, although some valid long/atypically
+named videos may be omitted.
+
 Availability checks use YouTube's published
 country list for the country in the selected locale (for example, `BR` for `pt-BR`)
 and skip known removed/private videos. Missing metadata or network failures leave
