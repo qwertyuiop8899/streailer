@@ -1,21 +1,13 @@
-FROM node:18-alpine
+FROM node:22-alpine
 
-# Set working directory
 WORKDIR /app
 
-# Copy package files first for caching
+# Use the audited dependency versions from package-lock.json.
 COPY package*.json ./
+RUN npm ci --omit=dev
 
-# Install dependencies
-# Using npm install instead of ci to ensure it picks up the fixed dotenv version
-# and handles any potential lockfile mismatches gracefully
-RUN npm install
-
-# Copy source code
+# .dockerignore excludes local secrets, history, fixtures and backups.
 COPY . .
 
-# Expose the default port
 EXPOSE 7020
-
-# Start the addon
 CMD ["node", "index.js"]
