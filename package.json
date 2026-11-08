@@ -7,7 +7,7 @@
     "start": "node index.js",
     "dev": "node index.js --launch",
     "test": "npm run test:regression && node tests/test-all.js",
-    "test:regression": "node tests/test-regression.js && node tests/test-identity.js && node tests/test-recap-regression.js && node tests/test-youtube-api.js"
+    "test:regression": "node tests/test-regression.js && node tests/test-identity.js && node tests/test-recap-regression.js && node tests/test-youtube-api.js && node tests/test-config-ui.js"
   },
   "keywords": [
     "stremio",

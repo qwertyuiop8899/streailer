@@ -351,6 +351,9 @@ async function run() {
             cwd: path.join(__dirname, '..'), env: { ...process.env, PORT: '0' }, stdio: ['ignore', 'pipe', 'pipe']
         });
         // index.js logs the actual bound port, allowing collision-free tests.
+        const serverLogs = [];
+        server.stdout.on('data', chunk => serverLogs.push(chunk.toString()));
+        server.stderr.on('data', chunk => serverLogs.push(chunk.toString()));
         try {
             const port = await new Promise((resolve, reject) => {
                 const timer = setTimeout(() => reject(new Error('Server startup timeout')), 10000);
@@ -363,6 +366,18 @@ async function run() {
             });
             const manifest = await getJson(port, '/manifest.json');
             assert.ok(manifest.config.some(option => option.key === 'strictLanguage'));
+            assert.ok(manifest.config.some(option => option.key === 'youtubeApiKey'));
+            const personalizedKey = 'test-only-secret-must-not-appear-in-logs';
+            const personalizedConfig = encodeURIComponent(JSON.stringify({
+                language: 'pt-BR', strictLanguage: false, youtubeApiKey: personalizedKey
+            }));
+            const personalized = await getJson(port,
+                '/' + personalizedConfig + '/stream/movie/tt34206385.json');
+            assert.strictEqual(personalized.streams[0].ytId, ids.dubbed);
+            await new Promise(resolve => setImmediate(resolve));
+            assert.ok(serverLogs.join('').includes('"hasYoutubeApiKey":true'));
+            assert.ok(!serverLogs.join('').includes(personalizedKey),
+                'API credentials must never be printed in process logs');
             for (const strictLanguage of [true, 'true', false, 'false']) {
                 const config = { language: 'pt-BR', strictLanguage, playerTarget: 'internal' };
                 const encodings = [encodeURIComponent(JSON.stringify(config)), Buffer.from(JSON.stringify(config)).toString('base64'), 'lang=pt-BR&strictLanguage=' + strictLanguage];

@@ -1,13 +1,15 @@
 /**
  * Optional YouTube Data API v3 verification for trailer candidates.
- * Uses only YOUTUBE_API_KEY from the server environment; never ships a key
- * to browsers or logs URLs containing credentials.
+ * Uses the request's optional key, or YOUTUBE_API_KEY in the environment.
+ * Request-provided keys can be embedded in Stremio configuration URLs and
+ * must never be printed in server logs.
  *
  * videos.list provides default *spoken* audio language, not alternate
  * audio tracks or the actual caption languages. A caption=true flag must
  * never be interpreted as proof of Portuguese subtitles.
  */
 const fetch = require('node-fetch');
+const { createHash } = require('crypto');
 
 const VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
 const BATCH_SIZE = 50;
@@ -76,9 +78,9 @@ function audioLanguageBonus(video, requested, initialScore = 0) {
     return 0;
 }
 
-function saveCache(id, video) {
-    cache.delete(id);
-    cache.set(id, {
+function saveCache(scopedId, video) {
+    cache.delete(scopedId);
+    cache.set(scopedId, {
         video,
         expiresAt: Date.now() + (video ? CACHE_TTL_MS : MISSING_TTL_MS)
     });
@@ -113,19 +115,24 @@ async function loadBatch(ids, apiKey) {
  * lookup. A Map entry with value null means that ID was absent from the API.
  * Successful requests are cached for six hours; missing IDs for 15 minutes.
  */
-async function getYouTubeVideoMetadata(videoIds) {
-    const apiKey = typeof process.env.YOUTUBE_API_KEY === 'string'
-        ? process.env.YOUTUBE_API_KEY.trim() : '';
-    if (!apiKey) return null;
+async function getYouTubeVideoMetadata(videoIds, requestApiKey = '') {
+    const selectedKey = typeof requestApiKey === 'string' && requestApiKey.trim()
+        ? requestApiKey : process.env.YOUTUBE_API_KEY;
+    const apiKey = typeof selectedKey === 'string' ? selectedKey.trim() : '';
+    if (!apiKey || apiKey.length > 256) return null;
+    // The key hash isolates cached authorization responses without retaining
+    // raw credentials as cache or in-flight lookup keys.
+    const scope = createHash('sha256').update(apiKey).digest('hex');
     const ids = [...new Set((videoIds || []).filter(id => VIDEO_ID.test(id)))];
     if (!ids.length) return new Map();
     const result = new Map();
     const missing = [];
     for (const id of ids) {
-        const cached = cache.get(id);
+        const scopedId = scope + ':' + id;
+        const cached = cache.get(scopedId);
         if (cached && cached.expiresAt > Date.now()) result.set(id, cached.video);
         else {
-            if (cached) cache.delete(id);
+            if (cached) cache.delete(scopedId);
             missing.push(id);
         }
     }
@@ -133,7 +140,7 @@ async function getYouTubeVideoMetadata(videoIds) {
     try {
         for (let i = 0; i < missing.length; i += BATCH_SIZE) {
             const batch = missing.slice(i, i + BATCH_SIZE);
-            const batchKey = batch.slice().sort().join(',');
+            const batchKey = scope + ':' + batch.slice().sort().join(',');
             let pending = inflight.get(batchKey);
             if (!pending) {
                 pending = loadBatch(batch, apiKey);
@@ -144,7 +151,7 @@ async function getYouTubeVideoMetadata(videoIds) {
             finally { if (inflight.get(batchKey) === pending) inflight.delete(batchKey); }
             for (const id of batch) {
                 const video = fetched.get(id) || null;
-                saveCache(id, video);
+                saveCache(scope + ':' + id, video);
                 result.set(id, video);
             }
         }

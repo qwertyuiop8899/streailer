@@ -85,13 +85,26 @@ named videos may be omitted.
 
 ### Optional YouTube Data API verification
 
-Set `YOUTUBE_API_KEY` in the **server container environment** to enable
-batch validation of trailer candidates using the official YouTube Data API v3
-`videos.list` endpoint (parts `snippet,contentDetails,status`). Do not put
-the key in the add-on manifest, public URLs, GitHub repository, or frontend.
-Restrict the key to **YouTube Data API v3** in Google Cloud, and where
-practical restrict allowed source IPs. The legacy TMDB/YouTube fallback still
-works if the key is missing, expired, rate-limited, or the API is unavailable.
+Set `YOUTUBE_API_KEY` in the **server container environment** (recommended)
+or paste a per-installation API key into the masked **YouTube Data API Key**
+field on the `/configure` page. When the field is empty the server environment
+key is used. A browser-provided key overrides the server key only for that
+installation, and the app avoids printing credentials in its own request logs.
+
+**Security warning:** Browser-entered keys must be included in the generated
+Stremio installation/manifest URL, which is also stored by the client.
+Anyone who can access that URL, browser history, proxy access logs or a shared
+manifest link may recover the key. Password masking does not encrypt it.
+Do not share such installation URLs, and prefer the server environment variable
+on public or shared deployments. Never commit a key to GitHub. Apply Google Cloud
+**YouTube Data API v3** API restrictions and suitable usage limits; use
+source-IP application restrictions for server-side keys where supported.
+
+The verifier queries the official YouTube Data API v3 `videos.list` endpoint
+(parts `snippet,contentDetails,status`). Responses are cached separately for
+each API key using SHA-256-scoped cache keys, so one user's verified result is
+not reused under another user's credential. The legacy TMDB/YouTube fallback
+still works if a key is missing, expired, rate-limited, or the API is unavailable.
 
 The optional API checks each candidate's published duration, livestream,
 private/deleted status and country restrictions; the existing YouTube watch

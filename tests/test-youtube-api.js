@@ -69,6 +69,59 @@ async function run() {
         }
     });
 
+    await test('per-user API key enables verification when no server key is configured', async () => {
+        delete process.env.YOUTUBE_API_KEY;
+        try {
+            const state = reset({ localized: [tmdb(ids.dubbed)] });
+            const streams = await getTrailerStreams('movie', 'tt34206385', 'Primetime',
+                undefined, 123, 'pt-BR', false, 'internal', false, 'user-key-123');
+            assert.strictEqual(streams[0].ytId, ids.dubbed);
+            assert.strictEqual(apiCalls(state).length, 1);
+            assert.strictEqual(apiCalls(state)[0].searchParams.get('key'), 'user-key-123');
+        } finally {
+            process.env.YOUTUBE_API_KEY = 'test-only-no-real-key';
+        }
+    });
+
+    await test('per-user key overrides server key without changing environment', async () => {
+        const state = reset({ localized: [tmdb(ids.dubbed)] });
+        await getTrailerStreams('movie', 'tt34206385', 'Primetime',
+            undefined, 123, 'pt-BR', false, 'internal', false, 'override-test-key');
+        assert.strictEqual(apiCalls(state)[0].searchParams.get('key'), 'override-test-key');
+        assert.strictEqual(process.env.YOUTUBE_API_KEY, 'test-only-no-real-key');
+    });
+
+    await test('cache isolation prevents two user keys from sharing API results', async () => {
+        const state = reset({ localized: [tmdb(ids.dubbed)] });
+        const first = await getTrailerStreams('movie', 'tt34206385', 'Primetime',
+            undefined, 123, 'pt-BR', false, 'internal', false, 'user-key-one');
+        assert.strictEqual(first[0].ytId, ids.dubbed);
+        const second = await getTrailerStreams('movie', 'tt34206385', 'Primetime',
+            undefined, 123, 'pt-BR', false, 'internal', false, 'user-key-two');
+        assert.strictEqual(second[0].ytId, ids.dubbed);
+        assert.deepStrictEqual(apiCalls(state).map(url => url.searchParams.get('key')),
+            ['user-key-one', 'user-key-two']);
+        await getTrailerStreams('movie', 'tt34206385', 'Primetime',
+            undefined, 123, 'pt-BR', false, 'internal', false, 'user-key-one');
+        assert.strictEqual(apiCalls(state).length, 2);
+    });
+
+    await test('per-user key still falls back to the legacy selection after API denial', async () => {
+        const state = reset({ localized: [tmdb(ids.dubbed)], apiStatus: 403 });
+        const streams = await getTrailerStreams('movie', 'tt34206385', 'Primetime',
+            undefined, 123, 'pt-BR', false, 'internal', false, 'invalid-user-key');
+        assert.strictEqual(streams[0].ytId, ids.dubbed);
+        assert.strictEqual(apiCalls(state).length, 1);
+    });
+
+    await test('empty per-user key uses server environment key as before', async () => {
+        const state = reset({ localized: [tmdb(ids.dubbed)] });
+        const streams = await getTrailerStreams('movie', 'tt34206385', 'Primetime',
+            undefined, 123, 'pt-BR', false, 'internal', false, '');
+        assert.strictEqual(streams[0].ytId, ids.dubbed);
+        assert.strictEqual(apiCalls(state)[0].searchParams.get('key'), 'test-only-no-real-key');
+    });
+
     await test('ISO 8601 video lengths reject malformed, empty and long records', async () => {
         assert.strictEqual(parseIsoDuration('PT2M30S'), 150);
         assert.strictEqual(parseIsoDuration('PT1H2M3S'), 3723);

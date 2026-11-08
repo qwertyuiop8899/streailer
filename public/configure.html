@@ -666,6 +666,47 @@
             height: 28px;
             fill: currentColor;
         }
+        .api-key-row {
+            display: flex;
+            align-items: stretch;
+            gap: 8px;
+        }
+
+        .api-key-input {
+            flex: 1;
+            min-width: 0;
+            padding: 14px 16px;
+            border: 1px solid rgba(168, 85, 247, 0.3);
+            border-radius: 12px;
+            background: rgba(10, 10, 15, 0.9);
+            color: #f0f0f0;
+            font: inherit;
+        }
+
+        .api-key-input:focus {
+            outline: 2px solid var(--neon-cyan);
+            outline-offset: 1px;
+        }
+
+        .api-key-visibility {
+            border: 1px solid rgba(168, 85, 247, 0.4);
+            border-radius: 12px;
+            color: var(--neon-cyan);
+            background: rgba(10, 10, 15, 0.9);
+            cursor: pointer;
+            padding: 0 16px;
+            font: inherit;
+        }
+
+        .api-key-help {
+            display: block;
+            margin-top: 8px;
+            line-height: 1.5;
+        }
+
+        .api-key-warning {
+            color: #ffd38f;
+        }
     </style>
 </head>
 
@@ -743,6 +784,25 @@
                         </label>
                         <span id="strictLanguageDescription" class="toggle-description">Require language evidence for trailers and disable English fallback</span>
                     </div>
+                </div>
+
+                <div class="form-group full-width">
+                    <label class="form-label" for="youtubeApiKeyInput">🔑 YouTube Data API Key (Optional)</label>
+                    <div class="api-key-row">
+                        <input id="youtubeApiKeyInput" name="youtubeDataApiKey" type="password"
+                            class="api-key-input" maxlength="256" autocomplete="off"
+                            autocapitalize="off" spellcheck="false"
+                            placeholder="Cole sua chave da YouTube Data API"
+                            aria-describedby="youtubeApiKeyHelp youtubeApiKeyWarning">
+                        <button id="youtubeApiKeyVisibility" class="api-key-visibility"
+                            type="button" aria-label="Mostrar chave" aria-pressed="false">Mostrar</button>
+                    </div>
+                    <span id="youtubeApiKeyHelp" class="toggle-description api-key-help">
+                        Deixe em branco para usar a chave configurada no servidor.
+                    </span>
+                    <span id="youtubeApiKeyWarning" class="toggle-description api-key-help api-key-warning">
+                        Atenção: a chave será incluída na URL de instalação do Stremio. Quem tiver o link poderá vê-la. Para mais segurança, use a chave apenas no servidor.
+                    </span>
                 </div>
 
                 <div class="form-group">
@@ -833,6 +893,10 @@
     <script>
         const languageSelect = document.getElementById('languageSelect');
         const strictLanguageToggle = document.getElementById('strictLanguageToggle');
+        const youtubeApiKeyInput = document.getElementById('youtubeApiKeyInput');
+        const youtubeApiKeyVisibility = document.getElementById('youtubeApiKeyVisibility');
+        const youtubeApiKeyHelp = document.getElementById('youtubeApiKeyHelp');
+        const youtubeApiKeyWarning = document.getElementById('youtubeApiKeyWarning');
         const playerSelect = document.getElementById('playerSelect');
         const playerLabel = document.getElementById('playerLabel');
         const playerDescription = document.getElementById('playerDescription');
@@ -926,6 +990,27 @@
             'hu-HU': 'Csak összefoglalók mutatása, előzetesek nélkül'
         };
 
+        const youtubeApiDescriptions = {
+            'pt-BR': {
+                help: 'Deixe em branco para usar a chave configurada no servidor.',
+                warning: 'Atenção: a chave será incluída na URL de instalação do Stremio. Quem tiver o link poderá vê-la. Para mais segurança, configure a chave apenas no servidor.',
+                show: 'Mostrar',
+                hide: 'Ocultar'
+            },
+            'pt-PT': {
+                help: 'Deixe em branco para utilizar a chave configurada no servidor.',
+                warning: 'Atenção: a chave ficará no endereço de instalação do Stremio. Quem tiver a ligação poderá vê-la. Para maior segurança, configure-a apenas no servidor.',
+                show: 'Mostrar',
+                hide: 'Ocultar'
+            },
+            'en-US': {
+                help: 'Leave blank to use the API key configured on the server.',
+                warning: 'Warning: the key will be included in your Stremio installation URL. Anyone with the link can see it. For better security, configure the key only on the server.',
+                show: 'Show',
+                hide: 'Hide'
+            }
+        };
+
         const playerDescriptions = {
             'en-US': 'Choose how to open trailers: internal player or external app (SmartTube, YouTube)',
             'it-IT': 'Scegli come aprire i trailer: player interno o app esterna (SmartTube, YouTube)',
@@ -938,6 +1023,10 @@
 
         function updateDescription() {
             const selectedLang = languageSelect.value;
+            const apiLabels = youtubeApiDescriptions[selectedLang] || youtubeApiDescriptions['en-US'];
+            youtubeApiKeyHelp.textContent = apiLabels.help;
+            youtubeApiKeyWarning.textContent = apiLabels.warning;
+            youtubeApiKeyVisibility.textContent = youtubeApiKeyInput.type === 'password' ? apiLabels.show : apiLabels.hide;
             toggleDescription.textContent = translations[selectedLang] || translations['en-US'];
             recapDescription.textContent = recapTranslations[selectedLang] || recapTranslations['en-US'];
             onlyRecapsDescription.textContent = onlyRecapsTranslations[selectedLang] || onlyRecapsTranslations['en-US'];
@@ -950,6 +1039,14 @@
         }
 
         languageSelect.addEventListener('change', updateDescription);
+
+        youtubeApiKeyVisibility.addEventListener('click', () => {
+            const visible = youtubeApiKeyInput.type === 'password';
+            youtubeApiKeyInput.type = visible ? 'text' : 'password';
+            youtubeApiKeyVisibility.setAttribute('aria-pressed', String(visible));
+            youtubeApiKeyVisibility.setAttribute('aria-label', visible ? 'Ocultar chave' : 'Mostrar chave');
+            updateDescription();
+        });
 
         // Sync player target and external link toggle
         playerSelect.addEventListener('change', () => {
@@ -1009,6 +1106,7 @@
                         const [k, v] = p.split('=');
                         if (k === 'lang' || k === 'language') cfg.language = v;
                         else if (k === 'strictLanguage') cfg.strictLanguage = (v === 'true');
+                        else if (k === 'youtubeApiKey') cfg.youtubeApiKey = decodeURIComponent(v || '');
                         else if (k === 'external' || k === 'externalLink') cfg.externalLink = (v === 'true');
                         else if (k === 'recap' || k === 'showRecap') cfg.showRecap = (v === 'true');
                         else if (k === 'onlyRecaps') cfg.onlyRecaps = (v === 'true');
@@ -1018,6 +1116,7 @@
                 if (cfg) {
                     if (cfg.language) languageSelect.value = cfg.language;
                     strictLanguageToggle.checked = cfg.strictLanguage === true || cfg.strictLanguage === 'true';
+                    if (typeof cfg.youtubeApiKey === 'string') youtubeApiKeyInput.value = cfg.youtubeApiKey;
                     if (cfg.playerTarget) {
                         playerSelect.value = cfg.playerTarget;
                         if (cfg.playerTarget !== 'internal') externalLinkToggle.checked = true;
@@ -1046,6 +1145,11 @@
                 showRecap: recap,
                 onlyRecaps: onlyRecaps
             };
+
+            // Only include a browser-entered key when provided. Otherwise the
+            // server's YOUTUBE_API_KEY may be used without exposing it.
+            const youtubeApiKey = youtubeApiKeyInput.value.trim();
+            if (youtubeApiKey) configObj.youtubeApiKey = youtubeApiKey;
 
             return encodeURIComponent(JSON.stringify(configObj));
         }

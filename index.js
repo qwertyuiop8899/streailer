@@ -61,6 +61,11 @@ const manifest = {
             required: true
         },
         {
+            key: 'youtubeApiKey',
+            type: 'text',
+            title: 'YouTube Data API Key (optional; visible in addon install URL)'
+        },
+        {
             key: 'strictLanguage',
             type: 'checkbox',
             title: 'Strict Trailer Language (Disable English Fallback)'
@@ -107,7 +112,17 @@ builder.defineStreamHandler(async ({ type, id, config }) => {
     activeStreamRequests += 1;
 
     try {
-        console.log(`[Streailer] Stream request: type=${type}, id=${id}, config=${JSON.stringify(config)}`);
+        // Log only an explicit allowlist: never print credential contents or
+        // unexpected configuration fields supplied by clients.
+        const safeConfig = {
+            language: config?.language,
+            strictLanguage: config?.strictLanguage,
+            playerTarget: config?.playerTarget,
+            showRecap: config?.showRecap,
+            onlyRecaps: config?.onlyRecaps,
+            hasYoutubeApiKey: Boolean(config?.youtubeApiKey)
+        };
+        console.log(`[Streailer] Stream request: type=${type}, id=${id}, config=${JSON.stringify(safeConfig)}`);
 
         if (!isTrailerProviderAvailable()) {
             console.warn('[Streailer] TMDB API key not configured');
@@ -212,7 +227,8 @@ builder.defineStreamHandler(async ({ type, id, config }) => {
                 language,
                 useExternalLink,
                 playerTarget,
-                strictLanguage
+                strictLanguage,
+                config?.youtubeApiKey || ''
             );
 
             // Get recap streams for TV series if enabled
@@ -309,6 +325,7 @@ function normalizeConfigString(rawConfig) {
             const val = v !== undefined ? decodeURIComponent(v).trim() : 'true';
 
             if (key === 'lang' || key === 'language') obj.language = val;
+            else if (key === 'youtubeApiKey') obj.youtubeApiKey = val;
             else if (key === 'external' || key === 'externalLink') obj.externalLink = (val === 'true');
             else if (key === 'recap' || key === 'showRecap') obj.showRecap = (val === 'true');
             else if (key === 'onlyRecaps') obj.onlyRecaps = (val === 'true');
