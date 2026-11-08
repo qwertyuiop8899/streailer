@@ -75,7 +75,8 @@ episodes, reviews, and reactions are not. Search extraction considers up to
 Recap searches separately validate each result's paired title and video ID,
 series name, requested season and duration, with a default
 `MAX_RECAP_DURATION_SECONDS` of 3600 seconds. This deliberately avoids
-playing unrelated episodes as recaps, although some valid long/atypically
+playing unrelated episodes as recaps, including numbered items such as
+`EP01`, `E01`, `S01E01`, and `1x01`, although some valid long or atypically
 named videos may be omitted.
 
 Availability checks use YouTube's published

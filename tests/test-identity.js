@@ -48,6 +48,57 @@ async function run() {
         reset({ metadata: rebel, candidates: [screenshotWrong, rebelCorrect] });
         assertVideo(await trailers(), ids.subtitled);
     });
+    await test('real O Rebelde pt-PT trailers remain valid alternate outcomes', async () => {
+        const portugal = [
+            { site: 'YouTube', key: 'A2MA-QCwDGU', type: 'Trailer', official: true,
+                name: 'A REVOLTA (The Uprising) - Trailer Oficial Legendado PT',
+                iso_639_1: 'pt', iso_3166_1: 'PT' },
+            realTmdbVideo
+        ];
+        // Either is an acceptable associated Portuguese trailer; the result
+        // should be chosen by ordinary ranking and order, not a special ID.
+        for (const videos of [portugal, [...portugal].reverse()]) {
+            const state = reset({
+                metadata: rebel, localized: [], portugal: videos,
+                candidates: [{
+                    ytId: 'yNj2h2SiyX8',
+                    title: 'THE UPRISING Official Trailer (2026) Andrew Garfield, Action Movie [4K]',
+                    durationSeconds: 155
+                }],
+                english: [{ site: 'YouTube', key: ids.english, type: 'Trailer', official: true,
+                    name: 'Official Trailer', iso_639_1: 'en', iso_3166_1: 'US' }]
+            });
+            const streams = await trailers({ strict: false });
+            assertVideo(streams, videos[0].key);
+            assert.ok(streams[0].name.includes('🇵🇹'));
+            assert.deepStrictEqual(streams[0].behaviorHints, { notWebReady: true, bingeGroup: 'trailer' });
+            assert.ok(state.calls.some(url => url.searchParams.get('language') === 'pt-PT'));
+            assert.ok(!state.calls.some(url => url.searchParams.get('language') === 'en-US'));
+        }
+    });
+    await test('O Rebelde pt-PT fallback skips unavailable and long trailers', async () => {
+        const first = { site: 'YouTube', key: 'A2MA-QCwDGU', type: 'Trailer', official: true,
+            name: 'A REVOLTA (The Uprising) - Trailer Oficial Legendado PT',
+            iso_639_1: 'pt', iso_3166_1: 'PT' };
+        for (const invalid of [fixture.playerHtml(['PT']), fixture.playerHtml(['BR', 'PT'], '', 800)]) {
+            reset({ metadata: rebel, localized: [], candidates: [],
+                portugal: [first, realTmdbVideo], watch: { [first.key]: invalid } });
+            assertVideo(await trailers({ strict: false }), realTmdbVideo.key);
+        }
+    });
+    await test('O Rebelde strict pt-BR keeps cross-region fallback disabled', async () => {
+        const state = reset({ metadata: rebel, localized: [], candidates: [],
+            portugal: [realTmdbVideo] });
+        assert.deepStrictEqual(await trailers({ strict: true }), []);
+        assert.ok(!state.calls.some(url => url.searchParams.get('language') === 'pt-PT'));
+    });
+    await test('O Rebelde uses an eligible pt-BR trailer before any pt-PT alternative', async () => {
+        const state = reset({ metadata: rebel, localized: [realTmdbVideo].map(v =>
+            ({ ...v, key: ids.dubbed, iso_3166_1: 'BR', name: 'O Rebelde Trailer Legendado PT-BR' })),
+            portugal: [realTmdbVideo], candidates: [] });
+        assertVideo(await trailers({ strict: false }), ids.dubbed);
+        assert.ok(!state.calls.some(url => url.searchParams.get('language') === 'pt-PT'));
+    });
     await test('O Rebelde rejects a matching-year full movie review (real incident)', async () => {
         const wrong = { ytId: 'I29NFB4moLk', title: 'O Rebelde (2026) Filme completo em português Revisão e fatos', durationSeconds: 7380 };
         reset({ metadata: rebel, candidates: [wrong, rebelCorrect] });

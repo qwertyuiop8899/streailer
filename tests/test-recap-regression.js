@@ -36,6 +36,25 @@ async function run() {
         ]);
         assert.deepStrictEqual(result, []);
     });
+    await test('season recaps reject episode notation S01E01, E01 and 1x01', async () => {
+        const wrong = [
+            candidate(ids.unknown, 'Primetime Temporada 1 Recap S01E01', 400),
+            candidate(ids.dubbed, 'Primetime Temporada 1 Recap E01', 400),
+            candidate(ids.german, 'Primetime Temporada 1 Recap 1x01', 400)
+        ];
+        const result = await recaps([
+            ...wrong, candidate(ids.subtitled, 'Primetime Temporada 1 Recap Legendado PT-BR', 700)
+        ]);
+        assert.strictEqual(result[0]?.ytId, ids.subtitled);
+    });
+    await test('generic anime recap excludes individual episode summaries', async () => {
+        reset({ candidates: [
+            candidate(ids.unknown, 'Primetime Recap S01E01', 300),
+            candidate(ids.dubbed, 'Primetime Recap 1x01', 300),
+            candidate(ids.german, 'Primetime Recap E01', 300)
+        ] });
+        assert.strictEqual(await searchGenericRecap('Primetime', 'pt-BR'), null);
+    });
     await test('full film and live streams cannot masquerade as recap', async () => {
         const result = await recaps([
             candidate(ids.unknown, 'Primetime Temporada 1 Recap Full Episode', 7000),

@@ -110,7 +110,7 @@ const configuredRecapDuration = Number(process.env.MAX_RECAP_DURATION_SECONDS);
 const MAX_RECAP_DURATION_SECONDS = Number.isInteger(configuredRecapDuration) &&
     configuredRecapDuration >= 60 && configuredRecapDuration <= 7200 ? configuredRecapDuration : 3600;
 const RECAP_CUE = /(?:^|\s)(?:recap|recapitulation|recapitulacion|summary|summarized|resumen|resumo|riassunto|zusammenfassung|ozet|skrot|osszefoglalo|samenvatting|previously)(?=\s|$)|総集編|まとめ|あらすじ|要約|содержание|кратко|சுருக்கம்|सारांश/u;
-const EPISODE_OR_MOVIE = /(?:^|\s)(?:(?:episode|episodio|episod|capitulo|ep)\s*0*\d+(?=\s|$)|(?:filme|film|movie|pelicula|episodio|episode)\s+(?:completo|completa|full|entire|complete)|(?:full|entire|complete)\s+(?:film|movie|episode))(?=\s|$)/u;
+const EPISODE_OR_MOVIE = /(?:^|\s)(?:(?:episode|episodio|episod|capitulo|ep|e)\s*0*\d+(?=\s|$)|s\d{1,2}\s*e\d{1,3}(?=\s|$)|\d{1,2}x\d{1,3}(?=\s|$)|(?:filme|film|movie|pelicula|episodio|episode)\s+(?:completo|completa|full|entire|complete)|(?:full|entire|complete)\s+(?:film|movie|episode))(?=\s|$)/u;
 const SEASON_MARKER = /(?:^|\s)(?:season|temporada|stagione|staffel|saison|sezon|seizoen|evad|сезон|シーズン|सीज़न|சீசன்)\s*(\d{1,2})(?=\s|$)|(?:^|\s)(\d{1,2})\s*(?:season|temporada|stagione|staffel|saison|sezon|seizoen|evad|сезон|シーズン|सीज़न|சீசன்)(?=\s|$)|(?:^|\s)s(\d{1,2})(?=\s|$)/gu;
 
 function isRelevantRecap(title, seriesName, season = null) {
