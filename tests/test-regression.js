@@ -21,6 +21,15 @@ function trailers(options = {}) {
 function tmdb(key, extra = {}) {
     return { site: 'YouTube', type: 'Trailer', official: true, key, name: 'Official Trailer', iso_639_1: 'pt', iso_3166_1: 'BR', ...extra };
 }
+function getHeaders(port, route) {
+    return new Promise((resolve, reject) => {
+        http.get({ hostname: '127.0.0.1', port, path: route }, response => {
+            response.resume();
+            response.on('end', () => resolve(response.headers));
+        }).on('error', reject);
+    });
+}
+
 function getJson(port, route) {
     return new Promise((resolve, reject) => {
         http.get({ hostname: '127.0.0.1', port, path: route }, response => {
@@ -378,6 +387,15 @@ async function run() {
             assert.ok(serverLogs.join('').includes('"hasYoutubeApiKey":true'));
             assert.ok(!serverLogs.join('').includes(personalizedKey),
                 'API credentials must never be printed in process logs');
+            const protectedPaths = [
+                '/' + personalizedConfig + '/configure',
+                '/' + personalizedConfig + '/manifest.json'
+            ];
+            for (const protectedPath of protectedPaths) {
+                const headers = await getHeaders(port, protectedPath);
+                assert.strictEqual(headers['referrer-policy'], 'no-referrer');
+                assert.strictEqual(headers['cache-control'], 'private, no-store');
+            }
             for (const strictLanguage of [true, 'true', false, 'false']) {
                 const config = { language: 'pt-BR', strictLanguage, playerTarget: 'internal' };
                 const encodings = [encodeURIComponent(JSON.stringify(config)), Buffer.from(JSON.stringify(config)).toString('base64'), 'lang=pt-BR&strictLanguage=' + strictLanguage];

@@ -382,13 +382,18 @@ async function inspectYouTubeVideo(ytId, region) {
  */
 async function selectAvailableTrailer(candidates, language, availability, requireDuration = false, minScore = 0, youtubeApiKey = '') {
     const region = language.split('-')[1];
-    const verified = await getYouTubeVideoMetadata(candidates.slice(0, 30).map(v => v.ytId), youtubeApiKey);
+    const checkedIds = candidates.slice(0, 30).map(v => v.ytId);
+    const verified = await getYouTubeVideoMetadata(checkedIds, youtubeApiKey);
+    const queriedIds = new Set(checkedIds);
     const eligible = candidates.map((candidate, position) => {
         if (candidate.score < 0) return null; // explicit language mismatch
-        const apiVideo = verified ? verified.get(candidate.ytId) : null;
-        // An authoritative successful API response with no matching ID means
-        // unavailable/private, unlike a failed API request (verified === null).
-        if (verified && isVideoExcluded(apiVideo, region, MAX_TRAILER_DURATION_SECONDS)) return null;
+        const queried = Boolean(verified && queriedIds.has(candidate.ytId));
+        const apiVideo = queried ? verified.get(candidate.ytId) : null;
+        // Only videos actually included in a successful API request may be
+        // treated as missing/unavailable. Longer TMDB video lists can contain
+        // eligible videos beyond the 30-ID verification budget; those retain
+        // legacy watch-page validation instead of being silently discarded.
+        if (queried && isVideoExcluded(apiVideo, region, MAX_TRAILER_DURATION_SECONDS)) return null;
         return {
             ...candidate,
             score: (candidate.score || 0) + audioLanguageBonus(apiVideo, language, candidate.score || 0),

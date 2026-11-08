@@ -17,8 +17,11 @@ const MAX_CACHE_ITEMS = 1000;
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const MISSING_TTL_MS = 15 * 60 * 1000;
 const TIMEOUT_MS = 4000;
+const FAILURE_COOLDOWN_MS = 60 * 1000;
+const MAX_FAILURE_ENTRIES = 1000;
 const cache = new Map();
 const inflight = new Map();
+const failures = new Map();
 
 function parseIsoDuration(value) {
     if (typeof value !== 'string') return null;
@@ -123,6 +126,8 @@ async function getYouTubeVideoMetadata(videoIds, requestApiKey = '') {
     // The key hash isolates cached authorization responses without retaining
     // raw credentials as cache or in-flight lookup keys.
     const scope = createHash('sha256').update(apiKey).digest('hex');
+    if ((failures.get(scope) || 0) > Date.now()) return null;
+    failures.delete(scope);
     const ids = [...new Set((videoIds || []).filter(id => VIDEO_ID.test(id)))];
     if (!ids.length) return new Map();
     const result = new Map();
@@ -155,10 +160,16 @@ async function getYouTubeVideoMetadata(videoIds, requestApiKey = '') {
                 result.set(id, video);
             }
         }
+        failures.delete(scope);
         return result;
     } catch (_) {
-        // 403/quota errors, timeout and transient network failures must not
-        // disable legacy TMDB and YouTube discovery. Never log the key or URL.
+        // Avoid repeatedly waiting for an expired key, quota failure or
+        // transient network timeout for every fallback on the same request.
+        // Keep the temporary breaker strictly scoped to the credential hash.
+        failures.delete(scope);
+        failures.set(scope, Date.now() + FAILURE_COOLDOWN_MS);
+        while (failures.size > MAX_FAILURE_ENTRIES) failures.delete(failures.keys().next().value);
+        // Never log the credential or its URL. Legacy fallback remains active.
         return null;
     }
 }
@@ -166,6 +177,7 @@ async function getYouTubeVideoMetadata(videoIds, requestApiKey = '') {
 function clearYouTubeMetadataCache() {
     cache.clear();
     inflight.clear();
+    failures.clear();
 }
 
 module.exports = {

@@ -95,6 +95,9 @@ installation, and the app avoids printing credentials in its own request logs.
 Stremio installation/manifest URL, which is also stored by the client.
 Anyone who can access that URL, browser history, proxy access logs or a shared
 manifest link may recover the key. Password masking does not encrypt it.
+Configuration and manifest responses use `Referrer-Policy: no-referrer` and
+`Cache-Control: private, no-store` to reduce accidental referrer/cache leakage,
+but this cannot erase URLs stored by clients, CDNs or reverse-proxy access logs.
 Do not share such installation URLs, and prefer the server environment variable
 on public or shared deployments. Never commit a key to GitHub. Apply Google Cloud
 **YouTube Data API v3** API restrictions and suitable usage limits; use
@@ -123,8 +126,13 @@ Successful responses are cached **in process for 6 hours**; missing video IDs
 are cached for 15 minutes, up to 1,000 entries, without requiring Redis or
 another service. A container restart clears this cache. Each API batch verifies
 up to 50 IDs; current trailer selection requests metadata only for up to 30
-ranked candidates per source/locale. Requests use a four-second timeout and
-fall back to the existing checks after API errors. API region restrictions
+ranked candidates per source/locale. TMDB entries beyond that budget
+are still eligible through the original watch-page validation; they are not
+mistaken for missing videos just because their IDs were not queried.
+Requests use a four-second timeout. When the API fails, the server keeps a
+one-minute failure cooldown scoped to the API key, avoiding repeated delays
+during fallbacks while retaining the original trailer selection.
+API region restrictions
 refer to the country of the requested language (for example, `BR` for
 `pt-BR`). Availability, identity and language still cannot be guaranteed
 for every video, especially after changes to external metadata or playback

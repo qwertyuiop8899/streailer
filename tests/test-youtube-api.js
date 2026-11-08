@@ -142,6 +142,57 @@ async function run() {
             new Set([ids.unknown, ids.dubbed, ids.subtitled]));
     });
 
+    await test('TMDB candidate beyond API verification budget remains eligible', async () => {
+        // API verified only the first 30 IDs. A 31st associated candidate was
+        // previously incorrectly classified as missing even though not queried.
+        const omitted = Array.from({ length: 30 }, (_, i) =>
+            tmdb('bulk' + String(i).padStart(7, '0')));
+        const state = reset({
+            localized: [...omitted, tmdb(ids.dubbed)],
+            apiVideos: {}
+        });
+        const streams = await trailers();
+        assert.strictEqual(streams[0].ytId, ids.dubbed);
+        const calls = apiCalls(state);
+        assert.strictEqual(calls.length, 1);
+        assert.strictEqual(calls[0].searchParams.get('id').split(',').length, 30);
+        assert.ok(!calls[0].searchParams.get('id').includes(ids.dubbed));
+    });
+
+    await test('utility batches 51 verified IDs in two requests of at most 50', async () => {
+        const videoIds = Array.from({ length: 51 }, (_, i) =>
+            'vid' + String(i).padStart(8, '0'));
+        const state = reset();
+        const result = await getYouTubeVideoMetadata(videoIds);
+        assert.strictEqual(result.size, 51);
+        assert.ok(videoIds.every(id => result.has(id) && result.get(id).id === id));
+        const calls = apiCalls(state);
+        assert.strictEqual(calls.length, 2);
+        assert.deepStrictEqual(calls.map(url => url.searchParams.get('id').split(',').length), [50, 1]);
+    });
+
+    await test('concurrent identical batches share one external API lookup', async () => {
+        const state = reset();
+        const [one, two] = await Promise.all([
+            getYouTubeVideoMetadata([ids.dubbed, ids.subtitled]),
+            getYouTubeVideoMetadata([ids.subtitled, ids.dubbed])
+        ]);
+        assert.strictEqual(one.get(ids.dubbed).id, ids.dubbed);
+        assert.strictEqual(two.get(ids.subtitled).id, ids.subtitled);
+        assert.strictEqual(apiCalls(state).length, 1);
+    });
+
+    await test('API failures briefly disable retries for one key only', async () => {
+        const state = reset({ apiStatus: 403 });
+        assert.strictEqual(await getYouTubeVideoMetadata([ids.dubbed], 'failed-key'), null);
+        assert.strictEqual(await getYouTubeVideoMetadata([ids.dubbed], 'failed-key'), null);
+        assert.strictEqual(apiCalls(state).length, 1);
+        state.apiStatus = 200;
+        const valid = await getYouTubeVideoMetadata([ids.dubbed], 'working-key');
+        assert.strictEqual(valid.get(ids.dubbed).id, ids.dubbed);
+        assert.strictEqual(apiCalls(state).length, 2);
+    });
+
     await test('successful metadata is cached across repeated trailer requests', async () => {
         const state = reset({ localized: [tmdb(ids.dubbed)] });
         assert.strictEqual((await trailers())[0].ytId, ids.dubbed);

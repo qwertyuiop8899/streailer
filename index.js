@@ -341,6 +341,18 @@ function normalizeConfigString(rawConfig) {
 // Create Express app
 const app = express();
 
+// Configuration URLs can contain user-provided API keys. Avoid sending those
+// URLs as Referer values to third-party assets, and discourage client/proxy
+// caching of pages and manifests that carry the installation configuration.
+// This does not hide credentials from URL history or reverse-proxy access logs.
+app.use((req, res, next) => {
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    if (req.path.endsWith('/configure') || req.path.endsWith('/manifest.json')) {
+        res.setHeader('Cache-Control', 'private, no-store');
+    }
+    next();
+});
+
 // Redirect root to configure
 app.get('/', (req, res) => {
     res.redirect('/configure');
