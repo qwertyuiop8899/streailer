@@ -102,14 +102,18 @@ function languageScore(title, contentName, language, metadata = {}) {
         .filter(([, pattern]) => pattern.test(hints)).map(([code]) => code);
     const subtitles = /\b(legendado|vostfr)\b/u.test(hints) ||
         /\b(subtitles?|subs?|subtitulado|untertitel)\s+(in\s+)?(brazilian\s+)?(portuguese|portugues|pt br)\b/u.test(hints);
+    // "Dublado" and "legendado" occur in both Brazilian and European
+    // Portuguese. A regional conclusion needs an explicit tag or TMDB data.
     const portugueseRegion = /\b(pt pt|portugal|portugues europeu)\b/u.test(hints) ? 'PT' :
-        /\b(pt br|brasil|brazil|brazilian|brasileiro|dublado|legendado)\b/u.test(hints) ? 'BR' : null;
+        /\b(pt br|brasil|brazil|brazilian|brasileiro)\b/u.test(hints) ? 'BR' : null;
     if (requested === 'pt' && portugueseRegion && portugueseRegion !== region) return -1;
+    // A TMDB locale mismatch must be rejected even when "legendado" hints
+    // at Portuguese subtitles; do this before the early subtitle return.
+    if (requested === 'pt' && metadata.iso_3166_1 && metadata.iso_3166_1 !== region) return -1;
     // Explicit localized subtitles can accompany original-language audio.
     if (matches.includes(requested) && subtitles && (requested === 'pt' || requested === 'fr')) return 2;
     if (matches.some(code => code !== requested)) return -1;
     if (metadata.iso_639_1 && metadata.iso_639_1 !== requested) return -1;
-    if (requested === 'pt' && metadata.iso_3166_1 && metadata.iso_3166_1 !== region) return -1;
     if (matches.includes(requested)) {
         return requested === 'pt' && /\bdublado\b/u.test(hints) ? 4 : 3;
     }

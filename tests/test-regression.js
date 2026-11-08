@@ -57,6 +57,82 @@ async function run() {
         reset({ candidates: [{ ytId: ids.unknown, title: 'Primetime (2026) Official Trailer' }] });
         assert.strictEqual((await trailers({ strict: 'false' }))[0].ytId, ids.unknown);
     });
+    await test('TMDB pt-PT subtitled trailer outranks English and language-neutral YouTube', async () => {
+        const ptTrailer = tmdb('zzPbA9yalhc', {
+            name: 'A REVOLTA (The Uprising) | Trailer Legendado PT',
+            iso_639_1: 'pt', iso_3166_1: 'PT'
+        });
+        const state = reset({
+            localized: [],
+            portugal: [ptTrailer],
+            candidates: [{ ytId: ids.unknown, title: 'Primetime (2026) Official Trailer 4K', durationSeconds: 160 }],
+            english: [tmdb(ids.english, { iso_639_1: 'en', iso_3166_1: 'US' })]
+        });
+        const streams = await trailers({ strict: false });
+        assert.strictEqual(streams[0].ytId, 'zzPbA9yalhc');
+        assert.ok(streams[0].name.includes('🇵🇹'));
+        assert.ok(state.calls.some(url => url.searchParams.get('language') === 'pt-PT'));
+        assert.ok(!state.calls.some(url => url.searchParams.get('language') === 'en-US'));
+    });
+    await test('pt-BR dubbed and subtitled TMDB trailers remain ahead of pt-PT', async () => {
+        for (const video of [
+            tmdb(ids.dubbed, { name: 'Primetime (2026) Trailer Dublado' }),
+            tmdb(ids.subtitled, { name: 'Primetime (2026) Trailer Legendado PT-BR' })
+        ]) {
+            const state = reset({ localized: [video], portugal: [tmdb('zzPbA9yalhc', {
+                name: 'Primetime (2026) Trailer Legendado PT', iso_639_1: 'pt', iso_3166_1: 'PT'
+            })] });
+            assert.strictEqual((await trailers())[0].ytId, video.key);
+            assert.ok(!state.calls.some(url => url.searchParams.get('language') === 'pt-PT'));
+        }
+    });
+    await test('pt-BR localized YouTube subtitles are preferred to the pt-PT TMDB fallback', async () => {
+        const state = reset({
+            localized: [],
+            portugal: [tmdb('zzPbA9yalhc', {
+                name: 'Primetime (2026) Trailer Legendado PT', iso_639_1: 'pt', iso_3166_1: 'PT'
+            })],
+            candidates: [subtitled]
+        });
+        assert.strictEqual((await trailers())[0].ytId, ids.subtitled);
+        assert.ok(!state.calls.some(url => url.searchParams.get('language') === 'pt-PT'));
+    });
+    await test('strict pt-BR does not silently fall back to pt-PT', async () => {
+        const state = reset({
+            localized: [], portugal: [tmdb('zzPbA9yalhc', {
+                iso_639_1: 'pt', iso_3166_1: 'PT'
+            })],
+            candidates: [{ ytId: ids.unknown, title: 'Primetime (2026) Official Trailer', durationSeconds: 140 }]
+        });
+        assert.deepStrictEqual(await trailers({ strict: true }), []);
+        assert.ok(!state.calls.some(url => url.searchParams.get('language') === 'pt-PT'));
+    });
+    await test('Portuguese locale metadata rejects European records in the Brazilian TMDB step', async () => {
+        const state = reset({
+            localized: [tmdb('zzPbA9yalhc', { name: 'Trailer Legendado',
+                iso_639_1: 'pt', iso_3166_1: 'PT' })],
+            portugal: [tmdb('zzPbA9yalhc', { name: 'Trailer Legendado',
+                iso_639_1: 'pt', iso_3166_1: 'PT' })],
+            candidates: []
+        });
+        const streams = await trailers();
+        assert.strictEqual(streams[0].ytId, 'zzPbA9yalhc');
+        assert.ok(streams[0].name.includes('🇵🇹'));
+        assert.ok(state.calls.some(url => url.searchParams.get('language') === 'pt-PT'));
+    });
+    await test('pt-PT trailer blocked in Brazil falls through to English TMDB', async () => {
+        const state = reset({
+            localized: [],
+            portugal: [tmdb('zzPbA9yalhc', {
+                name: 'Trailer Legendado', iso_639_1: 'pt', iso_3166_1: 'PT'
+            })],
+            candidates: [],
+            english: [tmdb(ids.english, { iso_639_1: 'en', iso_3166_1: 'US' })],
+            watch: { 'zzPbA9yalhc': playerHtml(['PT']) }
+        });
+        assert.strictEqual((await trailers())[0].ytId, ids.english);
+        assert.ok(state.calls.some(url => url.searchParams.get('language') === 'en-US'));
+    });
     await test('English TMDB association outranks neutral YouTube aggregator on a pt-BR request', async () => {
         reset({
             candidates: [{ ytId: ids.unknown, title: 'Primetime (2026) Official Trailer 4K', durationSeconds: 150 }],

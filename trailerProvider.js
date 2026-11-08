@@ -639,9 +639,27 @@ async function getTrailerStreams(type, imdbId, contentName, season, tmdbId, lang
             }
         }
 
-        // === STEP 3: TMDB English Fallback ===
+        // === STEP 3: European Portuguese TMDB Fallback (pt-BR only) ===
+        // Portuguese subtitles may be tagged pt-PT rather than pt-BR.
+        // Keep strict mode limited to the requested locale, but prefer a
+        // TMDB-associated PT trailer to English or neutral YouTube results.
+        if (!trailerResult && language === 'pt-BR' && !strictLanguage) {
+            console.log('[TrailerProvider] Step 3: Trying TMDB pt-PT for "' + contentTitle + '"');
+            const tmdbPtTrailer = await findTMDBTrailer(tmdbIdNum, type, 'pt-PT', season,
+                identity.titles.length ? identity.titles : [contentTitle], false, availability, language);
+            if (tmdbPtTrailer) {
+                console.log('[TrailerProvider] ✓ Found TMDB pt-PT trailer: ' + tmdbPtTrailer.title);
+                trailerResult = {
+                    ytId: tmdbPtTrailer.ytId,
+                    title: type === 'series' && season ? contentTitle + ' ' + t.season + ' ' + season : contentTitle,
+                    source: 'tmdb-pt'
+                };
+            }
+        }
+
+        // === STEP 4: TMDB English Fallback ===
         if (!trailerResult && !isEnglish && !strictLanguage) {
-            console.log(`[TrailerProvider] Step 3: Trying TMDB en-US for "${contentTitle}"`);
+            console.log(`[TrailerProvider] Step 4: Trying TMDB en-US for "${contentTitle}"`);
 
             const tmdbEnTrailer = await findTMDBTrailer(tmdbIdNum, type, 'en-US', season,
                 identity.titles.length ? identity.titles : [contentTitle], false, availability, language);
@@ -680,6 +698,9 @@ async function getTrailerStreams(type, imdbId, contentName, season, tmdbId, lang
                 break;
             case 'youtube':
                 streamName = '🎬▶️ Trailer';
+                break;
+            case 'tmdb-pt':
+                streamName = '🎬🇵🇹 Trailer';
                 break;
             case 'tmdb-en':
                 streamName = '🎬🇬🇧 Trailer';

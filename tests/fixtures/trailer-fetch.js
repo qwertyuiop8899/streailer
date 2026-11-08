@@ -41,7 +41,7 @@ let state;
 function reset(overrides = {}) {
     state = {
         candidates: [german, subtitled, dubbed, { ytId: ids.unknown, title: 'Primetime (2026) Official Trailer' }],
-        metadata: { ...defaultMetadata }, localized: [], english: [], watch: {}, calls: [], ...overrides
+        metadata: { ...defaultMetadata }, localized: [], portugal: [], english: [], watch: {}, calls: [], ...overrides
     };
     return state;
 }
@@ -56,7 +56,8 @@ async function fakeFetch(input) {
     state.calls.push(url);
     if (url.hostname === 'api.themoviedb.org') {
         if (url.pathname.endsWith('/videos')) {
-            const videos = url.searchParams.get('language') === 'en-US' ? state.english : state.localized;
+            const locale = url.searchParams.get('language');
+            const videos = locale === 'en-US' ? state.english : locale === 'pt-PT' ? state.portugal : state.localized;
             return response({ results: typeof videos === 'function' ? videos(url) : videos });
         }
         if (state.metadataError) throw new Error('TMDB metadata unavailable');

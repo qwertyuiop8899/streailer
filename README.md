@@ -40,6 +40,14 @@ With the new **External Link** option, trailers open directly in your device's *
 3️⃣ TMDB (English)          → Fallback trailer
 ```
 
+For a `pt-BR` request with strict language disabled, Streailer first tries
+TMDB Brazil and localized YouTube search; when neither provides a localized
+candidate, it also checks TMDB Portugal (`pt-PT`) before English TMDB trailers
+or language-neutral YouTube uploads. Portuguese subtitles are not assumed to
+be Brazilian merely because a title says `legendado`; TMDB locale and region
+metadata are used when provided. Strict-language mode never permits the
+cross-region fallback.
+
 The optional **Strict Trailer Language** setting requires language evidence from
 TMDB metadata or the YouTube title and disables the TMDB English fallback.
 It defaults to off for existing installations. Configure it on the installation
