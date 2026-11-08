@@ -5,7 +5,7 @@ const { spawn } = require('child_process');
 const fixture = require('./fixtures/trailer-fetch');
 const { ids, german, dubbed, subtitled, reset, searchHtml, playerHtml } = fixture;
 const { getTrailerStreams } = require(process.env.BASELINE_PROVIDER || '../trailerProvider');
-const { languageScore, parseSearchCandidates, isAvailableInRegion, isTrailerLikeTitle, parseDurationSeconds, playerVideoInfo } = require('../trailerSelection');
+const { languageScore, parseSearchCandidates, isAvailableInRegion, isTrailerLikeTitle, parseDurationSeconds, playerVideoInfo, matchesVerifiedVideoIdentity } = require('../trailerSelection');
 
 let passed = 0;
 async function test(name, run) {
@@ -270,6 +270,26 @@ async function run() {
         });
         assert.strictEqual((await trailers())[0].ytId, ids.dubbed);
     });
+    await test('actual YouTube title must corroborate TMDB association, not just language', async () => {
+        const film = { titles: ['Model Citizen'], year: 2026, runtimeMinutes: 93 };
+        assert.strictEqual(matchesVerifiedVideoIdentity(
+            'Model Citizen | Official Trailer | Warner Bros. Entertainment', film, 'movie', '2026-10-07'), true);
+        assert.strictEqual(matchesVerifiedVideoIdentity(
+            '"Model Citizen"(Cidadão Modelo) - David James PT-BR Legendado/tradução',
+            film, 'movie', '2026-11-03'), false);
+        assert.strictEqual(matchesVerifiedVideoIdentity(
+            'Model Citizen (2020) Trailer Legendado', film, 'movie', '2026-11-03'), false);
+        assert.strictEqual(matchesVerifiedVideoIdentity(
+            'Model Citizen (2026) Trailer', film, 'movie', '2020-01-10'), false);
+        assert.strictEqual(matchesVerifiedVideoIdentity(
+            'Model Citizen (2026) Animated Short Film Trailer', film, 'movie', '2026-11-03'), false);
+        assert.strictEqual(matchesVerifiedVideoIdentity(
+            'Another Citizen (2026) Official Trailer', film, 'movie', '2026-10-07'), false);
+        const uprising = { titles: ['O Rebelde', 'The Uprising'], year: 2026 };
+        assert.strictEqual(matchesVerifiedVideoIdentity(
+            'A REVOLTA (The Uprising) - Trailer Oficial Legendado PT', uprising, 'movie'), true);
+    });
+
     await test('title screening does not penalize canonical films called Review', async () => {
         assert.ok(isTrailerLikeTitle('The Review (2026) Official Trailer', ['The Review']));
         assert.ok(!isTrailerLikeTitle('The Review (2026) Official Trailer Reaction', ['The Review']));

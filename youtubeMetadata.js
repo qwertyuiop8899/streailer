@@ -42,6 +42,7 @@ function normalizeVideo(item) {
         title: snippet.title || '',
         channelId: snippet.channelId || null,
         channelTitle: snippet.channelTitle || null,
+        publishedAt: snippet.publishedAt || null,
         defaultAudioLanguage: snippet.defaultAudioLanguage || null,
         // defaultLanguage refers only to the video's text metadata.
         defaultLanguage: snippet.defaultLanguage || null,

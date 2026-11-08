@@ -29,11 +29,13 @@ function searchHtml(candidates) {
     }) + ';</script>';
 }
 
-function playerHtml(countries = ['BR', 'US', 'IT', 'PT', 'FR'], reason = '', durationSeconds = 150, live = false) {
+function playerHtml(countries = ['BR', 'US', 'IT', 'PT', 'FR'], reason = '', durationSeconds = 150, live = false, title = null, publishDate = null) {
     return '<script>var ytInitialPlayerResponse = ' + JSON.stringify({
         playabilityStatus: { status: reason ? 'ERROR' : 'OK', reason },
-        videoDetails: { lengthSeconds: String(durationSeconds), isLiveContent: live },
-        microformat: { playerMicroformatRenderer: { availableCountries: countries } }
+        videoDetails: { lengthSeconds: String(durationSeconds), isLiveContent: live, ...(title ? { title } : {}) },
+        microformat: { playerMicroformatRenderer: {
+            availableCountries: countries, ...(publishDate ? { publishDate } : {})
+        } }
     }) + ';</script>';
 }
 
@@ -61,9 +63,14 @@ async function fakeFetch(input) {
         const provided = state.apiVideos;
         const items = ids.map(id => {
             if (provided && !Object.prototype.hasOwnProperty.call(provided, id)) return null;
+            const media = state.metadata && typeof state.metadata === 'object' ?
+                state.metadata : defaultMetadata;
+            const mediaTitle = media.title || media.name || 'Primetime';
+            const release = media.release_date || media.first_air_date || '';
+            const year = /^\d{4}/.test(release) ? release.slice(0, 4) : '2026';
             return provided ? provided[id] : {
-                id, snippet: { title: 'Fixture trailer', channelId: 'fixture-channel',
-                    liveBroadcastContent: 'none' },
+                id, snippet: { title: mediaTitle + ' (' + year + ') Official Trailer',
+                    channelId: 'fixture-channel', liveBroadcastContent: 'none' },
                 contentDetails: { duration: 'PT2M30S', caption: 'false' },
                 status: { privacyStatus: 'public', uploadStatus: 'processed', embeddable: true }
             };

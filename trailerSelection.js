@@ -69,7 +69,9 @@ function playerVideoInfo(html) {
     const seconds = typeof rawDuration === 'string' && /^\d+$/.test(rawDuration) ? Number(rawDuration) : null;
     return {
         durationSeconds: Number.isSafeInteger(seconds) && seconds > 0 ? seconds : null,
-        live: player?.videoDetails?.isLiveContent === true || player?.microformat?.playerMicroformatRenderer?.liveBroadcastDetails?.isLiveNow === true
+        live: player?.videoDetails?.isLiveContent === true || player?.microformat?.playerMicroformatRenderer?.liveBroadcastDetails?.isLiveNow === true,
+        title: player?.videoDetails?.title || player?.microformat?.playerMicroformatRenderer?.title || null,
+        publishedAt: player?.microformat?.playerMicroformatRenderer?.publishDate || null
     };
 }
 
@@ -118,6 +120,43 @@ function languageScore(title, contentName, language, metadata = {}) {
         return requested === 'pt' && /\bdublado\b/u.test(hints) ? 4 : 3;
     }
     return metadata.iso_639_1 === requested ? 3 : 0;
+}
+
+/**
+ * Validate the title visible on YouTube, independently from TMDB's video
+ * association or the search snippet. Matching the media title alone is not
+ * enough: unrelated shorts, films and series frequently share that name.
+ *
+ * When the YouTube title is present, require an actual trailer/teaser cue OR
+ * an explicit matching movie release year. Reject contradictory years and
+ * videos originally published far before the movie's release. Unknown
+ * publication dates are not treated as evidence of a match.
+ */
+function matchesVerifiedVideoIdentity(videoTitle, identity = {}, type = 'movie', publishedAt = '') {
+    const titles = Array.isArray(identity.titles) ? identity.titles : [];
+    const releaseYear = Number.isInteger(identity.year) ? identity.year : null;
+    const uploadedYear = typeof publishedAt === 'string' && /^(?:18|19|20|21)\d{2}-\d{2}-\d{2}/.test(publishedAt)
+        ? Number(publishedAt.slice(0, 4)) : null;
+    // Earlier uploads may be legitimate delayed productions, but a video
+    // published 4+ years earlier is not reliable evidence for a new release.
+    if (type === 'movie' && releaseYear && uploadedYear && uploadedYear < releaseYear - 3) return false;
+    if (!videoTitle || !titles.length) return true; // cannot positively inspect
+    const normalized = ' ' + normalizeTitle(videoTitle) + ' ';
+    const matched = identityTitles(titles).find(alias => normalized.includes(' ' + alias + ' '));
+    if (!matched) return false;
+    if (isNonTrailerContent(videoTitle, titles)) return false;
+    // A feature-length movie cannot be represented by another production
+    // explicitly described as a short film, even if both share the title.
+    if (type === 'movie' && identity.runtimeMinutes >= 45 &&
+        /\b(?:short film|short movie|animated short|animation short|curta metragem|curta animado|cortometraje|court metrage)\b/u.test(normalizeTitle(videoTitle))) return false;
+    if (type !== 'movie') return isTrailerLikeTitle(videoTitle, titles);
+    // Exclude the matched title span when extracting release years so titles
+    // like "1984" do not accidentally count as a release date.
+    const remainder = normalized.replace(' ' + matched + ' ', ' ');
+    const years = remainder.match(/\b(?:18|19|20|21)\d{2}\b/g) || [];
+    if (releaseYear && years.some(year => Number(year) !== releaseYear)) return false;
+    return isTrailerLikeTitle(videoTitle, titles) ||
+        Boolean(releaseYear && years.some(year => Number(year) === releaseYear));
 }
 
 // Parse only the JSON assigned to YouTube's data variable. Braces inside
@@ -197,4 +236,4 @@ function isAvailableInRegion(html, region) {
     return true;
 }
 
-module.exports = { normalizeTitle, withoutTitles, languageScore, matchesSearchIdentity, extractYouTubeData, parseSearchCandidates, isAvailableInRegion, parseDurationSeconds, playerVideoInfo, isTrailerLikeTitle, isNonTrailerContent };
+module.exports = { normalizeTitle, withoutTitles, languageScore, matchesSearchIdentity, extractYouTubeData, parseSearchCandidates, isAvailableInRegion, parseDurationSeconds, playerVideoInfo, isTrailerLikeTitle, isNonTrailerContent, matchesVerifiedVideoIdentity };

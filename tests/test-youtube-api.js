@@ -368,6 +368,54 @@ async function run() {
         assert.ok(streams[0].externalUrl.includes(ids.dubbed));
     });
 
+    await test('YouTube API rejects a linked video published years before its actual movie', async () => {
+        const modelMetadata = { id: 1792170, title: 'Model Citizen',
+            original_title: 'Model Citizen', release_date: '2026-11-03', runtime: 93 };
+        const wrong = 'modelwrong01';
+        const right = 'modelright01';
+        const state = reset({
+            metadata: modelMetadata, candidates: [], portugal: [],
+            localized: [{ site: 'YouTube', key: wrong, type: 'Trailer', official: true,
+                name: 'Model Citizen Trailer Legendado PT-BR',
+                iso_639_1: 'pt', iso_3166_1: 'BR' }],
+            english: [{ site: 'YouTube', key: right, type: 'Trailer', official: true,
+                name: 'Official Trailer', iso_639_1: 'en', iso_3166_1: 'US' }],
+            apiVideos: {
+                [wrong]: video(wrong, { snippet: {
+                    title: 'Model Citizen (2026) Official Trailer PT-BR',
+                    publishedAt: '2020-01-10T00:00:00Z'
+                } }),
+                [right]: video(right, { snippet: {
+                    title: 'Model Citizen | Official Trailer | Warner Bros. Entertainment',
+                    publishedAt: '2026-10-07T00:00:00Z'
+                } })
+            }
+        });
+        const result = await getTrailerStreams('movie', 'tt13884466', 'Model Citizen',
+            undefined, 1792170, 'pt-BR', false, 'internal', false);
+        assert.strictEqual(result[0].ytId, right);
+        assert.ok(state.calls.some(url => url.searchParams.get('language') === 'en-US'));
+    });
+
+    await test('YouTube API rejects a TMDB-linked unrelated short even if freshly reuploaded', async () => {
+        reset({
+            metadata: { id: 1792170, title: 'Model Citizen',
+                original_title: 'Model Citizen', release_date: '2026-11-03', runtime: 93 },
+            candidates: [], portugal: [], english: [],
+            localized: [{ site: 'YouTube', key: 'modelwrong01', type: 'Trailer',
+                official: true, name: 'Model Citizen Trailer Legendado PT-BR',
+                iso_639_1: 'pt', iso_3166_1: 'BR' }],
+            apiVideos: {
+                modelwrong01: video('modelwrong01', { snippet: {
+                    title: '"Model Citizen" (Cidadão Modelo) - David James PT-BR Legendado/tradução',
+                    publishedAt: '2026-11-03T00:00:00Z'
+                } })
+            }
+        });
+        assert.deepStrictEqual(await getTrailerStreams('movie', 'tt13884466',
+            'Model Citizen', undefined, 1792170, 'pt-BR', false, 'internal', false), []);
+    });
+
     await test('metadata utility does not infer subtitles from caption existence', async () => {
         const state = reset({ apiVideos: {
             [ids.subtitled]: video(ids.subtitled, {

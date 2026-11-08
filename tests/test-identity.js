@@ -44,6 +44,77 @@ function assertVideo(streams, expected) {
 }
 
 async function run() {
+    await test('Model Citizen 2026 excludes the unrelated 2020 Autodale short and falls back to a real trailer', async () => {
+        const metadata = {
+            id: 1792170, title: 'Model Citizen', original_title: 'Model Citizen',
+            release_date: '2026-11-03', runtime: 93
+        };
+        const wrong = {
+            site: 'YouTube', key: 'modelwrong01', type: 'Trailer', official: true,
+            name: 'Model Citizen (2026) Trailer Legendado PT-BR',
+            iso_639_1: 'pt', iso_3166_1: 'BR'
+        };
+        const correct = {
+            site: 'YouTube', key: 'modelright01', type: 'Trailer', official: true,
+            name: 'Official Trailer', iso_639_1: 'en', iso_3166_1: 'US'
+        };
+        const source = reset({
+            metadata, localized: [wrong], portugal: [], candidates: [],
+            english: [correct],
+            watch: {
+                [wrong.key]: fixture.playerHtml(['BR', 'US'], '', 284, false,
+                    '"Model Citizen"(Cidadão Modelo) - David James PT-BR Legendado/tradução',
+                    '2020-01-10'),
+                [correct.key]: fixture.playerHtml(['BR', 'US'], '', 126, false,
+                    'Model Citizen | Official Trailer | Warner Bros. Entertainment',
+                    '2026-10-07')
+            }
+        });
+        const streams = await getTrailerStreams('movie', 'tt13884466', 'Model Citizen',
+            undefined, 1792170, 'pt-BR', false, 'internal', false);
+        assertVideo(streams, correct.key);
+        assert.ok(streams[0].name.includes('🇬🇧'));
+        assert.ok(source.calls.some(url => url.searchParams.get('language') === 'en-US'));
+    });
+
+    await test('Model Citizen rejects TMDB-associated conflicting years, creator shorts and missing alternatives', async () => {
+        const metadata = {
+            id: 1792170, title: 'Model Citizen',
+            original_title: 'Model Citizen', release_date: '2026-11-03', runtime: 93
+        };
+        for (const title of [
+            '"Model Citizen"(Cidadão Modelo) - David James PT-BR Legendado/tradução',
+            'Model Citizen (2020) Animated Short Film Trailer',
+            'Model Citizen (2026) Animated Short Film Trailer'
+        ]) {
+            reset({
+                metadata, localized: [{
+                    site: 'YouTube', key: 'modelwrong01', type: 'Trailer',
+                    official: true, name: 'Model Citizen Trailer Legendado',
+                    iso_639_1: 'pt', iso_3166_1: 'BR'
+                }], candidates: [], english: [],
+                watch: { modelwrong01: fixture.playerHtml(['BR'], '', 284, false, title) }
+            });
+            const streams = await getTrailerStreams('movie', 'tt13884466', 'Model Citizen',
+                undefined, 1792170, 'pt-BR', false, 'internal', false);
+            assert.deepStrictEqual(streams, []);
+        }
+    });
+
+    await test('Model Citizen youtube search snippet cannot override contradictory watch metadata', async () => {
+        reset({
+            metadata: { id: 1792170, title: 'Model Citizen', original_title: 'Model Citizen',
+                release_date: '2026-11-03', runtime: 93 },
+            candidates: [{ ytId: 'modelwrong01',
+                title: 'Model Citizen (2026) Trailer Dublado PT-BR', durationSeconds: 284 }],
+            localized: [], portugal: [], english: [],
+            watch: { modelwrong01: fixture.playerHtml(['BR'], '', 284, false,
+                'Model Citizen - Curta animado de David James') }
+        });
+        assert.deepStrictEqual(await getTrailerStreams('movie', 'tt13884466',
+            'Model Citizen', undefined, 1792170, 'pt-BR', false, 'internal', false), []);
+    });
+
     await test('O Rebelde 2026 skips the exact Tuff Turf 1985 screenshot result', async () => {
         reset({ metadata: rebel, candidates: [screenshotWrong, rebelCorrect] });
         assertVideo(await trailers(), ids.subtitled);

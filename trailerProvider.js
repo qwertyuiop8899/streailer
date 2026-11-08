@@ -5,7 +5,7 @@
  */
 
 const fetch = require('node-fetch');
-const { normalizeTitle, withoutTitles, languageScore, matchesSearchIdentity, parseSearchCandidates, isAvailableInRegion, playerVideoInfo, isTrailerLikeTitle, isNonTrailerContent } = require('./trailerSelection');
+const { normalizeTitle, withoutTitles, languageScore, matchesSearchIdentity, parseSearchCandidates, isAvailableInRegion, playerVideoInfo, isTrailerLikeTitle, isNonTrailerContent, matchesVerifiedVideoIdentity } = require('./trailerSelection');
 const { getYouTubeVideoMetadata, isVideoExcluded, audioLanguageBonus } = require('./youtubeMetadata');
 const YOUTUBE_HEADERS = { 'User-Agent': 'Mozilla/5.0', 'Accept-Language': 'en-US,en;q=0.9' };
 
@@ -307,7 +307,7 @@ function mediaIdentity(item = {}, type) {
     const originalTitle = (type === 'series' ? item.original_name : item.original_title) || '';
     const date = type === 'movie' ? item.release_date : null;
     const year = typeof date === 'string' && /^(?:18|19|20|21)\d{2}-\d{2}-\d{2}$/.test(date) ? Number(date.slice(0, 4)) : null;
-    return { id: item.id, title, originalTitle, year, titles: [title, originalTitle].filter(Boolean) };
+    return { id: item.id, title, originalTitle, year, runtimeMinutes: Number(item.runtime) || null, titles: [title, originalTitle].filter(Boolean) };
 }
 
 /**
@@ -415,6 +415,19 @@ async function selectAvailableTrailer(candidates, language, availability, requir
             const video = await availability.get(candidate.ytId);
             if (!video.available || video.live) return null;
             if (video.durationSeconds !== null && video.durationSeconds > MAX_TRAILER_DURATION_SECONDS) return null;
+            // A TMDB video link is an association, not proof of identity.
+            // Verify the actual YouTube title AND original publication date
+            // whenever available. A matching name alone is insufficient:
+            // different productions often have identical names.
+            for (const [actualTitle, publishedAt] of [
+                [candidate.apiVideo?.title, candidate.apiVideo?.publishedAt],
+                [video.title, video.publishedAt]
+            ]) {
+                if (!matchesVerifiedVideoIdentity(actualTitle, candidate.identity, candidate.mediaType, publishedAt)) {
+                    console.log('[TrailerProvider] Rejecting incompatible YouTube video identity (ID: ' + candidate.ytId + ')');
+                    return null;
+                }
+            }
             // TMDB-linked videos have an identity association; scraped results
             // still require a duration from either API, watch page or search.
             if (requireDuration && video.durationSeconds === null &&
@@ -427,7 +440,7 @@ async function selectAvailableTrailer(candidates, language, availability, requir
     return null;
 }
 
-async function selectBestTrailer(videos, contentName, language, strictLanguage, availability, regionLanguage = language, youtubeApiKey = '') {
+async function selectBestTrailer(videos, contentName, language, strictLanguage, availability, regionLanguage = language, youtubeApiKey = '', identity = null, mediaType = 'movie') {
     const typePriority = ['Trailer', 'Teaser', 'Clip'];
     const candidates = videos.filter(v => v.site === 'YouTube' && /^[\w-]{11}$/.test(v.key) &&
         typePriority.includes(v.type) && !isNonTrailerContent(v.name, contentName) &&
@@ -437,18 +450,20 @@ async function selectBestTrailer(videos, contentName, language, strictLanguage, 
             title: video.name,
             score: languageScore(video.name, contentName, language, video),
             priority: (video.official ? 0 : 3) + typePriority.indexOf(video.type),
-            supported: typePriority.includes(video.type)
+            supported: typePriority.includes(video.type),
+            identity,
+            mediaType
         }))
         .sort((a, b) => b.score - a.score || Number(b.supported) - Number(a.supported) || a.priority - b.priority);
     return selectAvailableTrailer(candidates, regionLanguage, availability, false, strictLanguage ? 1 : 0, youtubeApiKey);
 }
 
-async function findTMDBTrailer(tmdbId, type, language, season, contentName, strictLanguage, availability, regionLanguage = language, youtubeApiKey = '') {
+async function findTMDBTrailer(tmdbId, type, language, season, contentName, strictLanguage, availability, regionLanguage = language, youtubeApiKey = '', identity = null) {
     const videos = await fetchTMDBVideos(tmdbId, type, language, season);
-    const trailer = await selectBestTrailer(videos, contentName, language, strictLanguage, availability, regionLanguage, youtubeApiKey);
+    const trailer = await selectBestTrailer(videos, contentName, language, strictLanguage, availability, regionLanguage, youtubeApiKey, identity, type);
     if (trailer || type !== 'series' || !(season > 0)) return trailer;
     const seriesVideos = await fetchTMDBVideos(tmdbId, type, language);
-    return selectBestTrailer(seriesVideos, contentName, language, strictLanguage, availability, regionLanguage, youtubeApiKey);
+    return selectBestTrailer(seriesVideos, contentName, language, strictLanguage, availability, regionLanguage, youtubeApiKey, identity, type);
 }
 
 async function searchYouTubeScraping(query, language) {
@@ -521,7 +536,7 @@ async function searchYouTubeTrailer(identity, type, season, language, strictLang
             isTrailerLikeTitle(candidate.title, titles) &&
             matchesSearchIdentity(candidate.title, identity, type) &&
             (type !== 'series' || matchesSeason(candidate.title, season, language, titles));
-    }).map(candidate => ({ ...candidate, score: languageScore(candidate.title, titles, language) }))
+    }).map(candidate => ({ ...candidate, identity, mediaType: type, score: languageScore(candidate.title, titles, language) }))
         .sort((a, b) => b.score - a.score)
         .filter(candidate => {
             // YouTube can localize a video's title differently between queries.
@@ -631,7 +646,7 @@ async function getTrailerStreams(type, imdbId, contentName, season, tmdbId, lang
         console.log(`[TrailerProvider] Step 1: Trying TMDB ${language} for "${contentTitle}"`);
 
         const tmdbLangTrailer = await findTMDBTrailer(tmdbIdNum, type, language, season,
-            identity.titles.length ? identity.titles : [contentTitle], strictLanguage, availability, language, youtubeApiKey);
+            identity.titles.length ? identity.titles : [contentTitle], strictLanguage, availability, language, youtubeApiKey, identity);
         if (tmdbLangTrailer) {
             console.log(`[TrailerProvider] ✓ Found TMDB ${language} trailer: ${tmdbLangTrailer.title}`);
             trailerResult = {
@@ -673,7 +688,7 @@ async function getTrailerStreams(type, imdbId, contentName, season, tmdbId, lang
         if (!trailerResult && language === 'pt-BR' && !strictLanguage) {
             console.log('[TrailerProvider] Step 3: Trying TMDB pt-PT for "' + contentTitle + '"');
             const tmdbPtTrailer = await findTMDBTrailer(tmdbIdNum, type, 'pt-PT', season,
-                identity.titles.length ? identity.titles : [contentTitle], false, availability, language, youtubeApiKey);
+                identity.titles.length ? identity.titles : [contentTitle], false, availability, language, youtubeApiKey, identity);
             if (tmdbPtTrailer) {
                 console.log('[TrailerProvider] ✓ Found TMDB pt-PT trailer: ' + tmdbPtTrailer.title);
                 trailerResult = {
@@ -689,7 +704,7 @@ async function getTrailerStreams(type, imdbId, contentName, season, tmdbId, lang
             console.log(`[TrailerProvider] Step 4: Trying TMDB en-US for "${contentTitle}"`);
 
             const tmdbEnTrailer = await findTMDBTrailer(tmdbIdNum, type, 'en-US', season,
-                identity.titles.length ? identity.titles : [contentTitle], false, availability, language, youtubeApiKey);
+                identity.titles.length ? identity.titles : [contentTitle], false, availability, language, youtubeApiKey, identity);
             if (tmdbEnTrailer) {
                 console.log(`[TrailerProvider] ✓ Found TMDB en-US trailer: ${tmdbEnTrailer.title}`);
                 trailerResult = {

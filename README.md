@@ -69,6 +69,19 @@ This deliberately favors missing a trailer over selecting another film with the
 same translated title. Search titles are still third-party metadata, not a
 guarantee about the actual video content.
 
+The TMDB association is not treated as proof that the linked YouTube ID
+shows the correct production. After lookup, Streailer cross-checks YouTube's
+actual title (from the Data API and/or watch-page player metadata), explicit
+release-year conflicts, video publication dates, and contradictory short-film
+labels against the canonical film identity. This also covers misleading YouTube
+search snippets: search-result titles are independently rechecked against the
+video title when it is available. For example, the 2020 animated `Model Citizen`
+short is not a trailer for the 2026 feature film. Genuine yearless titles such
+as `Model Citizen | Official Trailer | Warner Bros. Entertainment` remain
+eligible, while same-title videos without trailer cues are rejected. Missing
+YouTube metadata remains an uncertainty rather than an invented identity
+confirmation; no automated metadata match can guarantee video contents.
+
 Scraped YouTube videos must show a trailer/teaser cue, a matching identity,
 and a verified duration of no more than `MAX_TRAILER_DURATION_SECONDS`
 (default: 600 seconds). A phrase such as "Full Movie Trailer" is allowed
