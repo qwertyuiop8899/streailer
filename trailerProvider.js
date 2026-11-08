@@ -615,17 +615,27 @@ async function getTrailerStreams(type, imdbId, contentName, season, tmdbId, lang
         }
 
         // === STEP 2: YouTube Scraping Fallback ===
+        // A search localized to pt-BR (or another locale) can still return
+        // English uploads from aggregators. Defer language-neutral results
+        // until the directly associated TMDB English trailer has been checked.
+        // A dubbed/subtitled/localized YouTube result keeps its priority.
+        let deferredYouTubeResult = null;
         if (!trailerResult) {
             console.log(`[TrailerProvider] Step 2: Trying YouTube (${language}) for "${contentTitle}"`);
 
             const ytResult = await searchYouTubeTrailer(identity, type, season, language, strictLanguage, availability);
             if (ytResult) {
-                console.log(`[TrailerProvider] ✓ Found YouTube trailer: ${ytResult.title}`);
-                trailerResult = {
-                    ytId: ytResult.ytId,
-                    title: ytResult.title,
-                    source: 'youtube'
-                };
+                if (ytResult.score === 0 && !strictLanguage && !isEnglish) {
+                    console.log('[TrailerProvider] Deferring language-neutral YouTube result until TMDB English fallback');
+                    deferredYouTubeResult = ytResult;
+                } else {
+                    console.log(`[TrailerProvider] ✓ Found YouTube trailer: ${ytResult.title}`);
+                    trailerResult = {
+                        ytId: ytResult.ytId,
+                        title: ytResult.title,
+                        source: 'youtube'
+                    };
+                }
             }
         }
 
@@ -643,6 +653,17 @@ async function getTrailerStreams(type, imdbId, contentName, season, tmdbId, lang
                     source: 'tmdb-en'
                 };
             }
+        }
+
+        // Keep legacy neutral-search coverage if TMDB has no eligible
+        // associated trailer. This fallback is not verified as official.
+        if (!trailerResult && deferredYouTubeResult) {
+            console.log(`[TrailerProvider] ✓ Using unverified-language YouTube fallback: ${deferredYouTubeResult.title}`);
+            trailerResult = {
+                ytId: deferredYouTubeResult.ytId,
+                title: deferredYouTubeResult.title,
+                source: 'youtube'
+            };
         }
 
         // No trailer found

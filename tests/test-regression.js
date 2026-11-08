@@ -57,6 +57,39 @@ async function run() {
         reset({ candidates: [{ ytId: ids.unknown, title: 'Primetime (2026) Official Trailer' }] });
         assert.strictEqual((await trailers({ strict: 'false' }))[0].ytId, ids.unknown);
     });
+    await test('English TMDB association outranks neutral YouTube aggregator on a pt-BR request', async () => {
+        reset({
+            candidates: [{ ytId: ids.unknown, title: 'Primetime (2026) Official Trailer 4K', durationSeconds: 150 }],
+            english: [tmdb(ids.english, { name: 'Official Trailer', iso_639_1: 'en', iso_3166_1: 'US', official: true })]
+        });
+        const streams = await trailers({ strict: false });
+        assert.strictEqual(streams[0].ytId, ids.english);
+        assert.ok(streams[0].name.includes('🇬🇧'));
+    });
+    await test('verified localized YouTube dubbing outranks English TMDB fallback', async () => {
+        const state = reset({
+            candidates: [dubbed, { ytId: ids.unknown, title: 'Primetime (2026) Official Trailer', durationSeconds: 150 }],
+            english: [tmdb(ids.english, { iso_639_1: 'en', iso_3166_1: 'US', official: true })]
+        });
+        const streams = await trailers({ strict: false });
+        assert.strictEqual(streams[0].ytId, ids.dubbed);
+        assert.ok(!state.calls.some(url => url.searchParams.get('language') === 'en-US'));
+    });
+    await test('neutral YouTube remains available when TMDB English has no linked trailer', async () => {
+        reset({
+            candidates: [{ ytId: ids.unknown, title: 'Primetime (2026) Official Trailer', durationSeconds: 125 }],
+            english: []
+        });
+        assert.strictEqual((await trailers({ strict: false }))[0].ytId, ids.unknown);
+    });
+    await test('region-blocked English TMDB falls back to eligible neutral YouTube', async () => {
+        reset({
+            candidates: [{ ytId: ids.unknown, title: 'Primetime (2026) Official Trailer', durationSeconds: 125 }],
+            english: [tmdb(ids.english, { iso_639_1: 'en', iso_3166_1: 'US' })],
+            watch: { [ids.english]: playerHtml(['US']) }
+        });
+        assert.strictEqual((await trailers({ strict: false }))[0].ytId, ids.unknown);
+    });
     await test('legacy configs retain labeled TMDB English fallback', async () => {
         reset({ candidates: [german], english: [tmdb(ids.english, { iso_639_1: 'en', iso_3166_1: 'US' })] });
         const streams = await trailers();
