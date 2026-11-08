@@ -5,7 +5,7 @@ const { spawn } = require('child_process');
 const fixture = require('./fixtures/trailer-fetch');
 const { ids, german, dubbed, subtitled, reset, searchHtml, playerHtml } = fixture;
 const { getTrailerStreams } = require(process.env.BASELINE_PROVIDER || '../trailerProvider');
-const { languageScore, parseSearchCandidates, isAvailableInRegion } = require('../trailerSelection');
+const { languageScore, parseSearchCandidates, isAvailableInRegion, isTrailerLikeTitle, parseDurationSeconds, playerVideoInfo } = require('../trailerSelection');
 
 let passed = 0;
 async function test(name, run) {
@@ -81,7 +81,7 @@ async function run() {
         assert.strictEqual((await trailers({ strict: true }))[0].ytId, ids.dubbed);
     });
     await test('unknown availability preserves eligible candidates', async () => {
-        reset({ watch: { [ids.dubbed]: new Error('timeout') } });
+        reset({ candidates: [{ ...dubbed, durationSeconds: 155 }, subtitled], watch: { [ids.dubbed]: new Error('timeout') } });
         assert.strictEqual((await trailers())[0].ytId, ids.dubbed);
         assert.strictEqual(isAvailableInRegion('<html>Consent required</html>', 'BR'), true);
         assert.strictEqual(isAvailableInRegion(playerHtml(['BR'], "Sign in to confirm you're not a bot"), 'BR'), true);
@@ -105,6 +105,71 @@ async function run() {
     await test('TMDB ranks official trailers before teasers and clips for equal language evidence', async () => {
         reset({ localized: [tmdb(ids.unknown, { type: 'Clip' }), tmdb(ids.subtitled, { type: 'Teaser' }), tmdb(ids.dubbed)] });
         assert.strictEqual((await trailers())[0].ytId, ids.dubbed);
+    });
+    await test('movie-length YouTube results are rejected even when labeled trailers', async () => {
+        reset({
+            candidates: [dubbed, subtitled],
+            watch: { [ids.dubbed]: playerHtml(['BR'], '', 7300) }
+        });
+        assert.strictEqual((await trailers())[0].ytId, ids.subtitled);
+    });
+    await test('long durations from search data are rejected without needing watch metadata', async () => {
+        const long = { ...dubbed, durationSeconds: 7500 };
+        reset({ candidates: [long, subtitled], watch: { [ids.dubbed]: new Error('timeout') } });
+        assert.strictEqual((await trailers())[0].ytId, ids.subtitled);
+    });
+    await test('live streams are excluded even with matching localized trailer titles', async () => {
+        reset({ candidates: [{ ...dubbed, live: true }, subtitled] });
+        assert.strictEqual((await trailers())[0].ytId, ids.subtitled);
+    });
+    await test('non-trailer commentary cannot displace a legitimate localized trailer', async () => {
+        reset({ candidates: [
+            { ytId: ids.unknown, title: 'Primetime (2026) Trailer Reaction Review Dublado', durationSeconds: 90 },
+            { ytId: ids.english, title: 'Primetime (2026) Filme completo em português', durationSeconds: 6500 },
+            subtitled
+        ] });
+        assert.strictEqual((await trailers())[0].ytId, ids.subtitled);
+    });
+    await test('missing duration fails closed for scraped search but preserves TMDB fallback', async () => {
+        reset({
+            candidates: [dubbed],
+            watch: { [ids.dubbed]: '<html>Consent required</html>' },
+            english: [tmdb(ids.english, { iso_639_1: 'en', iso_3166_1: 'US' })]
+        });
+        assert.strictEqual((await trailers())[0].ytId, ids.english);
+    });
+    await test('non-trailer TMDB types and misleading titles are excluded', async () => {
+        reset({ localized: [
+            tmdb(ids.unknown, { type: 'Featurette' }),
+            tmdb(ids.english, { name: 'Primetime (2026) Filme completo legendado' }),
+            tmdb(ids.dubbed)
+        ] });
+        assert.strictEqual((await trailers())[0].ytId, ids.dubbed);
+    });
+    await test('overlong TMDB video falls through to the next verified trailer', async () => {
+        reset({ localized: [tmdb(ids.unknown), tmdb(ids.dubbed)],
+            watch: { [ids.unknown]: playerHtml(['BR'], '', 7200) }
+        });
+        assert.strictEqual((await trailers())[0].ytId, ids.dubbed);
+    });
+    await test('title screening does not penalize canonical films called Review', async () => {
+        assert.ok(isTrailerLikeTitle('The Review (2026) Official Trailer', ['The Review']));
+        assert.ok(!isTrailerLikeTitle('The Review (2026) Official Trailer Reaction', ['The Review']));
+    });
+    await test('real YouTube search lengths and watch lengths are parsed', async () => {
+        assert.strictEqual(parseDurationSeconds('2:03:40'), 7420);
+        assert.strictEqual(parseDurationSeconds('1:32'), 92);
+        assert.strictEqual(parseDurationSeconds('3:90'), null);
+        const parsed = parseSearchCandidates(searchHtml([
+            { ...dubbed, durationSeconds: 7420 }, { ...subtitled, live: true }
+        ]));
+        assert.strictEqual(parsed[0].durationSeconds, 7420);
+        assert.strictEqual(parsed[1].live, true);
+        assert.strictEqual(playerVideoInfo(playerHtml(['BR'], '', 150)).durationSeconds, 150);
+    });
+    await test('scraped trailers without any verifiable duration are skipped', async () => {
+        reset({ candidates: [dubbed], watch: { [ids.dubbed]: '<html>Consent required</html>' } });
+        assert.deepStrictEqual(await trailers({ strict: true }), []);
     });
     await test('invalid IDs and unrelated video titles are rejected', async () => {
         reset({ candidates: [{ ytId: ids.dubbed, title: 'Another Movie Trailer Dublado' }, { ytId: 'bad', title: dubbed.title }], localized: [tmdb('invalid')] });

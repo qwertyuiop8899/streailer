@@ -33,6 +33,46 @@ function withoutTitles(title, titles) {
     return remaining;
 }
 
+// The search result title alone is insufficient: the same movie name/year is
+// commonly used for complete films, reviews and full episodes.
+const TRAILER_CUE = /\b(?:trailer|teaser|preview|promo|promotional|previa|chamada|avance|adelanto|bande annonce|vorschau|anteprima|fragman|zwiastun|voorproefje|elozetes|anons)\b|予告|ティーザー|ट्रेलर|टीजर|प्रोमो|டிரெய்லர்|டீசர்|трейлер|тизер|промо/u;
+const NON_TRAILER_CUE = [
+    /\b(?:(?:full|complete|entire|whole)\s+(?:movie|film|episode|series|season)|(?:movie|film|episode|series|season|filme|episodio|pelicula|serie|temporada)\s+(?:full|complete|completo|completa|inteiro|inteira|entero|entera|integral))\b/u,
+    /\b(?:review|revisao|resenha|analise|analysis|explained|explicado|recap|resumo|resumen|reaction|reacao|react|gameplay|walkthrough|breakdown|entrevista|interview|making of|behind the scenes|documentary|documentario|critica|spoilers?|ending explained|final explicado|commentary|commentario|recensione|reseña|reaccion|zusammenfassung|reaktion|отзыв|обзор)\b/u,
+    /映画全編|全話|全編|本編|完全版|全エピソード|реакция|объяснение|फुल मूवी|पूरी फिल्म|முழு படம்/u
+];
+
+// Remove the known media titles before interpreting keywords. For instance,
+// a movie called "The Review" must not be mistaken for an actual review.
+function isNonTrailerContent(title, knownTitles = []) {
+    const remainder = withoutTitles(title, knownTitles);
+    return NON_TRAILER_CUE.some(pattern => pattern.test(remainder));
+}
+
+function isTrailerLikeTitle(title, knownTitles = []) {
+    const remainder = withoutTitles(title, knownTitles);
+    return TRAILER_CUE.test(remainder) && !isNonTrailerContent(title, knownTitles);
+}
+
+function parseDurationSeconds(value) {
+    if (typeof value !== 'string') return null;
+    const parts = value.trim().split(':');
+    if (parts.length < 2 || parts.length > 3 || !parts.every(p => /^\d{1,3}$/.test(p))) return null;
+    if (parts.slice(1).some(p => Number(p) >= 60)) return null;
+    const seconds = parts.reduce((total, part) => total * 60 + Number(part), 0);
+    return Number.isSafeInteger(seconds) && seconds > 0 ? seconds : null;
+}
+
+function playerVideoInfo(html) {
+    const player = extractYouTubeData(html, 'ytInitialPlayerResponse');
+    const rawDuration = player?.videoDetails?.lengthSeconds ?? player?.microformat?.playerMicroformatRenderer?.lengthSeconds;
+    const seconds = typeof rawDuration === 'string' && /^\d+$/.test(rawDuration) ? Number(rawDuration) : null;
+    return {
+        durationSeconds: Number.isSafeInteger(seconds) && seconds > 0 ? seconds : null,
+        live: player?.videoDetails?.isLiveContent === true || player?.microformat?.playerMicroformatRenderer?.liveBroadcastDetails?.isLiveNow === true
+    };
+}
+
 // Search ranking is not a reliable media identifier. Require a canonical title
 // and a corroborating release year for movies; TMDB-linked videos bypass this
 // search-only check because they are already associated with the requested ID.
@@ -117,7 +157,17 @@ function parseSearchCandidates(html) {
             const title = video.title?.simpleText || video.title?.runs?.map(run => run.text || '').join('');
             if (/^[\w-]{11}$/.test(video.videoId) && title && !seen.has(video.videoId)) {
                 seen.add(video.videoId);
-                candidates.push({ ytId: video.videoId, title });
+                const length = video.lengthText?.simpleText || video.lengthText?.runs?.map(run => run.text || '').join('');
+                const durationSeconds = parseDurationSeconds(length);
+                const overlay = video.thumbnailOverlays || [];
+                const live = video.isLive === true || overlay.some(item => {
+                    const style = item?.thumbnailOverlayTimeStatusRenderer?.style;
+                    return style === 'LIVE' || style === 'UPCOMING';
+                });
+                const candidate = { ytId: video.videoId, title };
+                if (durationSeconds !== null) candidate.durationSeconds = durationSeconds;
+                if (live) candidate.live = true;
+                candidates.push(candidate);
             }
             return;
         }
@@ -141,4 +191,4 @@ function isAvailableInRegion(html, region) {
     return true;
 }
 
-module.exports = { normalizeTitle, withoutTitles, languageScore, matchesSearchIdentity, extractYouTubeData, parseSearchCandidates, isAvailableInRegion };
+module.exports = { normalizeTitle, withoutTitles, languageScore, matchesSearchIdentity, extractYouTubeData, parseSearchCandidates, isAvailableInRegion, parseDurationSeconds, playerVideoInfo, isTrailerLikeTitle, isNonTrailerContent };

@@ -9,19 +9,30 @@ const defaultMetadata = {
     name: 'Primetime', original_name: 'Primetime', first_air_date: '2026-01-01'
 };
 
+function durationLabel(seconds) {
+    const minutes = Math.floor(seconds / 60);
+    const remainder = String(seconds % 60).padStart(2, '0');
+    return minutes >= 60 ? Math.floor(minutes / 60) + ':' + String(minutes % 60).padStart(2, '0') + ':' + remainder : minutes + ':' + remainder;
+}
+
 function searchHtml(candidates) {
     return '<script>var ytInitialData = ' + JSON.stringify({
         contents: { twoColumnSearchResultsRenderer: { primaryContents: {
             sectionListRenderer: { contents: [{ itemSectionRenderer: {
-                contents: candidates.map(v => ({ videoRenderer: { videoId: v.ytId, title: { runs: [{ text: v.title }] } } }))
+                contents: candidates.map(v => ({ videoRenderer: {
+                    videoId: v.ytId, title: { runs: [{ text: v.title }] },
+                    ...(Number.isInteger(v.durationSeconds) ? { lengthText: { simpleText: durationLabel(v.durationSeconds) } } : {}),
+                    ...(v.live ? { thumbnailOverlays: [{ thumbnailOverlayTimeStatusRenderer: { style: 'LIVE' } }] } : {})
+                } }))
             } }] }
         } } }
     }) + ';</script>';
 }
 
-function playerHtml(countries = ['BR', 'US', 'IT', 'PT', 'FR'], reason = '') {
+function playerHtml(countries = ['BR', 'US', 'IT', 'PT', 'FR'], reason = '', durationSeconds = 150, live = false) {
     return '<script>var ytInitialPlayerResponse = ' + JSON.stringify({
         playabilityStatus: { status: reason ? 'ERROR' : 'OK', reason },
+        videoDetails: { lengthSeconds: String(durationSeconds), isLiveContent: live },
         microformat: { playerMicroformatRenderer: { availableCountries: countries } }
     }) + ';</script>';
 }

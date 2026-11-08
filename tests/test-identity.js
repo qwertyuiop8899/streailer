@@ -48,6 +48,20 @@ async function run() {
         reset({ metadata: rebel, candidates: [screenshotWrong, rebelCorrect] });
         assertVideo(await trailers(), ids.subtitled);
     });
+    await test('O Rebelde rejects a matching-year full movie review (real incident)', async () => {
+        const wrong = { ytId: 'I29NFB4moLk', title: 'O Rebelde (2026) Filme completo em português Revisão e fatos', durationSeconds: 7380 };
+        reset({ metadata: rebel, candidates: [wrong, rebelCorrect] });
+        assertVideo(await trailers({ strict: false }), ids.subtitled);
+        reset({ metadata: rebel, candidates: [wrong] });
+        assert.deepStrictEqual(await trailers({ strict: false }), []);
+    });
+    await test('O Rebelde rejects a movie-length result even when advertised as a trailer', async () => {
+        reset({ metadata: rebel, candidates: [
+            { ytId: 'I29NFB4moLk', title: 'O Rebelde (2026) Official Trailer', durationSeconds: 7550 },
+            rebelCorrect
+        ] });
+        assertVideo(await trailers({ strict: false }), ids.subtitled);
+    });
     await test('an unrelated release cannot win through stronger dubbing evidence', async () => {
         reset({ metadata: rebel, candidates: [candidate('O Rebelde (1985) Trailer Dublado'), rebelCorrect] });
         assertVideo(await trailers(), ids.subtitled);
@@ -187,6 +201,13 @@ async function run() {
     });
 
     const series = { id: 977942, name: 'Primetime', original_name: 'Primetime', first_air_date: '2010-01-01' };
+    await test('complete TV episode must never be selected as a series trailer', async () => {
+        const dragon = { id: 977942, name: 'Encontro com o Dragão', original_name: 'Miss The Dragon', first_air_date: '2021-01-01' };
+        reset({ metadata: dragon, candidates: [
+            { ytId: 'I29NFB4moLk', title: 'Encontro com o Dragão EP01 | Miss The Dragon | 遇龙 (Legendado PT-BR)', durationSeconds: 2700 }
+        ] });
+        assert.deepStrictEqual(await trailers({ type: 'series', title: 'Encontro com o Dragão', strict: false }), []);
+    });
     await test('later TV seasons are not constrained to a series premiere year', async () => {
         reset({ metadata: series, candidates: [candidate('Primetime Temporada 2 (2026) Trailer Dublado')] });
         assertVideo(await trailers({ type: 'series', title: 'Primetime', season: 2 }), ids.dubbed);

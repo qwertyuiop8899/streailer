@@ -5,13 +5,18 @@
  */
 
 const fetch = require('node-fetch');
-const { normalizeTitle, withoutTitles, languageScore, matchesSearchIdentity, parseSearchCandidates, isAvailableInRegion } = require('./trailerSelection');
+const { normalizeTitle, withoutTitles, languageScore, matchesSearchIdentity, parseSearchCandidates, isAvailableInRegion, playerVideoInfo, isTrailerLikeTitle, isNonTrailerContent } = require('./trailerSelection');
 const YOUTUBE_HEADERS = { 'User-Agent': 'Mozilla/5.0', 'Accept-Language': 'en-US,en;q=0.9' };
 
 // TMDB API configuration
 const TMDB_BASE = 'https://api.themoviedb.org/3';
 const TMDB_KEY = process.env.TMDB_KEY || 'ad0f7351455041d8c9c0d4370a4b5fa5';
 const DEFAULT_TIMEOUT_MS = 8000;
+// Configurable upper bound, shared by TMDB and YouTube search candidates.
+// An invalid setting falls back to ten minutes rather than disabling safety.
+const configuredDuration = Number(process.env.MAX_TRAILER_DURATION_SECONDS);
+const MAX_TRAILER_DURATION_SECONDS = Number.isInteger(configuredDuration) && configuredDuration >= 30 && configuredDuration <= 3600
+    ? configuredDuration : 600;
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = DEFAULT_TIMEOUT_MS) {
     const controller = new AbortController();
@@ -351,26 +356,41 @@ async function fetchTMDBVideos(tmdbId, type, language, season) {
     }
 }
 
+/** Inspect once per YouTube ID, preserving availability checks and candidate order. */
+async function inspectYouTubeVideo(ytId, region) {
+    try {
+        const response = await fetchWithTimeout(
+            'https://www.youtube.com/watch?v=' + ytId + '&hl=en',
+            { headers: YOUTUBE_HEADERS }, 3000);
+        // Transient HTTP errors do not establish video unavailability.
+        if (!response.ok) return { available: true, durationSeconds: null, live: false };
+        const html = await response.text();
+        return { available: isAvailableInRegion(html, region), ...playerVideoInfo(html) };
+    } catch (_) {
+        // A timeout or bot challenge is not proof of a regional block. The
+        // duration rule below still fails closed for unverified scraped videos.
+        return { available: true, durationSeconds: null, live: false };
+    }
+}
+
 /** Check a bounded set of candidates while preserving their ranked order. */
-async function selectAvailableTrailer(candidates, language, availability) {
+async function selectAvailableTrailer(candidates, language, availability, requireDuration = false) {
     const region = language.split('-')[1];
     for (let offset = 0; offset < Math.min(candidates.length, 10); offset += 5) {
         const checked = await Promise.all(candidates.slice(offset, offset + 5).map(async candidate => {
+            if (candidate.live === true || (candidate.durationSeconds != null &&
+                candidate.durationSeconds > MAX_TRAILER_DURATION_SECONDS)) return null;
             if (!availability.has(candidate.ytId)) {
-                availability.set(candidate.ytId, (async () => {
-                    try {
-                        const response = await fetchWithTimeout(
-                            'https://www.youtube.com/watch?v=' + candidate.ytId + '&hl=en',
-                            { headers: YOUTUBE_HEADERS }, 3000);
-                        if (!response.ok) return true;
-                        return isAvailableInRegion(await response.text(), region);
-                    } catch (_) {
-                        // Missing metadata and network failures leave availability unknown.
-                        return true;
-                    }
-                })());
+                availability.set(candidate.ytId, inspectYouTubeVideo(candidate.ytId, region));
             }
-            return await availability.get(candidate.ytId) ? candidate : null;
+            const video = await availability.get(candidate.ytId);
+            if (!video.available || video.live) return null;
+            if (video.durationSeconds !== null && video.durationSeconds > MAX_TRAILER_DURATION_SECONDS) return null;
+            // TMDB links have a verified movie/series association, whereas
+            // scraped search results must establish their duration to qualify.
+            if (requireDuration && video.durationSeconds === null &&
+                candidate.durationSeconds == null) return null;
+            return candidate;
         }));
         const available = checked.find(Boolean);
         if (available) return available;
@@ -380,7 +400,9 @@ async function selectAvailableTrailer(candidates, language, availability) {
 
 async function selectBestTrailer(videos, contentName, language, strictLanguage, availability, regionLanguage = language) {
     const typePriority = ['Trailer', 'Teaser', 'Clip'];
-    const candidates = videos.filter(v => v.site === 'YouTube' && /^[\w-]{11}$/.test(v.key))
+    const candidates = videos.filter(v => v.site === 'YouTube' && /^[\w-]{11}$/.test(v.key) &&
+        typePriority.includes(v.type) && !isNonTrailerContent(v.name, contentName) &&
+        (v.type !== 'Clip' || isTrailerLikeTitle(v.name, contentName)))
         .map(video => ({
             ytId: video.key,
             title: video.name,
@@ -466,7 +488,10 @@ async function searchYouTubeTrailer(identity, type, season, language, strictLang
     const candidates = results.flat();
     const seen = new Set();
     const ranked = candidates.filter(candidate => {
-        return matchesSearchIdentity(candidate.title, identity, type) &&
+        return !candidate.live &&
+            (candidate.durationSeconds == null || candidate.durationSeconds <= MAX_TRAILER_DURATION_SECONDS) &&
+            isTrailerLikeTitle(candidate.title, titles) &&
+            matchesSearchIdentity(candidate.title, identity, type) &&
             (type !== 'series' || matchesSeason(candidate.title, season, language, titles));
     }).map(candidate => ({ ...candidate, score: languageScore(candidate.title, titles, language) }))
         .filter(candidate => candidate.score >= (strictLanguage ? 1 : 0))
@@ -478,7 +503,7 @@ async function searchYouTubeTrailer(identity, type, season, language, strictLang
             seen.add(candidate.ytId);
             return true;
         });
-    return selectAvailableTrailer(ranked, language, availability);
+    return selectAvailableTrailer(ranked, language, availability, true);
 }
 
 function formatStreamTarget(ytId, playerTarget = 'internal', useExternalLink = false) {
