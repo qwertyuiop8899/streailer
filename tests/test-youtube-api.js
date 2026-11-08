@@ -371,8 +371,8 @@ async function run() {
     await test('YouTube API rejects a linked video published years before its actual movie', async () => {
         const modelMetadata = { id: 1792170, title: 'Model Citizen',
             original_title: 'Model Citizen', release_date: '2026-11-03', runtime: 93 };
-        const wrong = 'modelwrong01';
-        const right = 'modelright01';
+        const wrong = 'mdlwrong001';
+        const right = 'mdlright001';
         const state = reset({
             metadata: modelMetadata, candidates: [], portugal: [],
             localized: [{ site: 'YouTube', key: wrong, type: 'Trailer', official: true,
@@ -402,11 +402,11 @@ async function run() {
             metadata: { id: 1792170, title: 'Model Citizen',
                 original_title: 'Model Citizen', release_date: '2026-11-03', runtime: 93 },
             candidates: [], portugal: [], english: [],
-            localized: [{ site: 'YouTube', key: 'modelwrong01', type: 'Trailer',
+            localized: [{ site: 'YouTube', key: 'mdlwrong001', type: 'Trailer',
                 official: true, name: 'Model Citizen Trailer Legendado PT-BR',
                 iso_639_1: 'pt', iso_3166_1: 'BR' }],
             apiVideos: {
-                modelwrong01: video('modelwrong01', { snippet: {
+                mdlwrong001: video('mdlwrong001', { snippet: {
                     title: '"Model Citizen" (Cidadão Modelo) - David James PT-BR Legendado/tradução',
                     publishedAt: '2026-11-03T00:00:00Z'
                 } })

@@ -50,12 +50,12 @@ async function run() {
             release_date: '2026-11-03', runtime: 93
         };
         const wrong = {
-            site: 'YouTube', key: 'modelwrong01', type: 'Trailer', official: true,
+            site: 'YouTube', key: 'mdlwrong001', type: 'Trailer', official: true,
             name: 'Model Citizen (2026) Trailer Legendado PT-BR',
             iso_639_1: 'pt', iso_3166_1: 'BR'
         };
         const correct = {
-            site: 'YouTube', key: 'modelright01', type: 'Trailer', official: true,
+            site: 'YouTube', key: 'mdlright001', type: 'Trailer', official: true,
             name: 'Official Trailer', iso_639_1: 'en', iso_3166_1: 'US'
         };
         const source = reset({
@@ -89,11 +89,11 @@ async function run() {
         ]) {
             reset({
                 metadata, localized: [{
-                    site: 'YouTube', key: 'modelwrong01', type: 'Trailer',
+                    site: 'YouTube', key: 'mdlwrong001', type: 'Trailer',
                     official: true, name: 'Model Citizen Trailer Legendado',
                     iso_639_1: 'pt', iso_3166_1: 'BR'
                 }], candidates: [], english: [],
-                watch: { modelwrong01: fixture.playerHtml(['BR'], '', 284, false, title) }
+                watch: { mdlwrong001: fixture.playerHtml(['BR'], '', 284, false, title) }
             });
             const streams = await getTrailerStreams('movie', 'tt13884466', 'Model Citizen',
                 undefined, 1792170, 'pt-BR', false, 'internal', false);
@@ -105,10 +105,10 @@ async function run() {
         reset({
             metadata: { id: 1792170, title: 'Model Citizen', original_title: 'Model Citizen',
                 release_date: '2026-11-03', runtime: 93 },
-            candidates: [{ ytId: 'modelwrong01',
+            candidates: [{ ytId: 'mdlwrong001',
                 title: 'Model Citizen (2026) Trailer Dublado PT-BR', durationSeconds: 284 }],
             localized: [], portugal: [], english: [],
-            watch: { modelwrong01: fixture.playerHtml(['BR'], '', 284, false,
+            watch: { mdlwrong001: fixture.playerHtml(['BR'], '', 284, false,
                 'Model Citizen - Curta animado de David James') }
         });
         assert.deepStrictEqual(await getTrailerStreams('movie', 'tt13884466',
