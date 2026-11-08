@@ -47,7 +47,17 @@ page or pass `strictLanguage=true` in a query-string configuration.
 
 YouTube search evaluates multiple matching videos and rejects explicit language
 mismatches. Brazilian Portuguese searches prefer dubbed trailers, then localized
-trailers and Portuguese subtitles. Availability checks use YouTube's published
+trailers and Portuguese subtitles. Movie searches use the canonical TMDB title,
+original title, and release year. A search result must contain a canonical title
+and that release year, with no contradictory year or numbered sequel suffix.
+Yearless results and movies with missing identity metadata are skipped by the
+search fallback; videos linked directly to the requested TMDB ID remain eligible.
+Season searches require the requested season rather than the series premiere year.
+This deliberately favors missing a trailer over selecting another film with the
+same translated title. Search titles are still third-party metadata, not a
+guarantee about the actual video content.
+
+Availability checks use YouTube's published
 country list for the country in the selected locale (for example, `BR` for `pt-BR`)
 and skip known removed/private videos. Missing metadata or network failures leave
 availability unknown. Titles and metadata cannot guarantee the spoken language

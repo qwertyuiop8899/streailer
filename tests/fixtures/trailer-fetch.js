@@ -2,8 +2,12 @@ const assert = require('assert');
 
 const ids = { german: 'MbyygcWY7yY', dubbed: 'dubbed00001', subtitled: 'subbed00001', unknown: 'unknown0001', english: 'english0001' };
 const german = { ytId: ids.german, title: 'PRIMETIME Trailer German Deutsch (2026) Robert Pattinson' };
-const dubbed = { ytId: ids.dubbed, title: 'Primetime | Trailer Dublado' };
-const subtitled = { ytId: ids.subtitled, title: 'Primetime | Trailer Legendado PT-BR' };
+const dubbed = { ytId: ids.dubbed, title: 'Primetime (2026) | Trailer Dublado' };
+const subtitled = { ytId: ids.subtitled, title: 'Primetime (2026) | Trailer Legendado PT-BR' };
+const defaultMetadata = {
+    id: 123, title: 'Primetime', original_title: 'Primetime', release_date: '2026-01-01',
+    name: 'Primetime', original_name: 'Primetime', first_air_date: '2026-01-01'
+};
 
 function searchHtml(candidates) {
     return '<script>var ytInitialData = ' + JSON.stringify({
@@ -24,7 +28,10 @@ function playerHtml(countries = ['BR', 'US', 'IT', 'PT', 'FR'], reason = '') {
 
 let state;
 function reset(overrides = {}) {
-    state = { candidates: [german, subtitled, dubbed, { ytId: ids.unknown, title: 'Primetime Official Trailer' }], localized: [], english: [], watch: {}, calls: [], ...overrides };
+    state = {
+        candidates: [german, subtitled, dubbed, { ytId: ids.unknown, title: 'Primetime (2026) Official Trailer' }],
+        metadata: { ...defaultMetadata }, localized: [], english: [], watch: {}, calls: [], ...overrides
+    };
     return state;
 }
 reset();
@@ -37,12 +44,17 @@ async function fakeFetch(input) {
     const url = new URL(input);
     state.calls.push(url);
     if (url.hostname === 'api.themoviedb.org') {
-        if (url.pathname.includes('/find/')) return response({ movie_results: [{ id: 123, title: 'Primetime' }], tv_results: [{ id: 123, name: 'Primetime' }] });
         if (url.pathname.endsWith('/videos')) {
             const videos = url.searchParams.get('language') === 'en-US' ? state.english : state.localized;
             return response({ results: typeof videos === 'function' ? videos(url) : videos });
         }
-        return response({ title: 'Primetime', name: 'Primetime' });
+        if (state.metadataError) throw new Error('TMDB metadata unavailable');
+        const metadata = typeof state.metadata === 'function' ? state.metadata(url) : state.metadata;
+        if (state.metadataStatus && state.metadataStatus !== 200) return response({ status_message: 'Metadata unavailable' }, state.metadataStatus);
+        if (url.pathname.includes('/find/')) {
+            return response(state.findResults || { movie_results: metadata ? [metadata] : [], tv_results: metadata ? [metadata] : [] });
+        }
+        return response(metadata);
     }
     assert.strictEqual(url.hostname, 'www.youtube.com', 'Unexpected network access');
     if (url.pathname === '/results') {

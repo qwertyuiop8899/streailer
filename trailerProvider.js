@@ -5,7 +5,7 @@
  */
 
 const fetch = require('node-fetch');
-const { normalizeTitle, languageScore, parseSearchCandidates, isAvailableInRegion } = require('./trailerSelection');
+const { normalizeTitle, withoutTitles, languageScore, matchesSearchIdentity, parseSearchCandidates, isAvailableInRegion } = require('./trailerSelection');
 const YOUTUBE_HEADERS = { 'User-Agent': 'Mozilla/5.0', 'Accept-Language': 'en-US,en;q=0.9' };
 
 // TMDB API configuration
@@ -296,6 +296,14 @@ function getTranslation(language) {
     return TRANSLATIONS[language] || TRANSLATIONS['en-US'];
 }
 
+function mediaIdentity(item = {}, type) {
+    const title = (type === 'series' ? item.name : item.title) || '';
+    const originalTitle = (type === 'series' ? item.original_name : item.original_title) || '';
+    const date = type === 'movie' ? item.release_date : null;
+    const year = typeof date === 'string' && /^(?:18|19|20|21)\d{2}-\d{2}-\d{2}$/.test(date) ? Number(date.slice(0, 4)) : null;
+    return { id: item.id, title, originalTitle, year, titles: [title, originalTitle].filter(Boolean) };
+}
+
 /**
  * Convert IMDb ID to TMDB ID and get title in specified language
  */
@@ -305,13 +313,12 @@ async function imdbToTmdbWithLanguage(imdbId, type, language) {
     try {
         const url = `${TMDB_BASE}/find/${imdbId}?api_key=${TMDB_KEY}&external_source=imdb_id&language=${language}`;
         const response = await fetchWithTimeout(url);
+        if (!response.ok) return null;
         const data = await response.json();
 
         const results = type === 'series' ? data.tv_results : data.movie_results;
         if (results && results.length > 0) {
-            const item = results[0];
-            const title = item.title || item.name || '';
-            return { id: item.id, title };
+            return mediaIdentity(results[0], type);
         }
     } catch (e) {
         console.error('[TrailerProvider] Error converting IMDb to TMDB:', e);
@@ -408,23 +415,69 @@ async function searchYouTubeScraping(query, language) {
     }
 }
 
-async function searchYouTubeTrailer(contentName, type, season, language, strictLanguage, availability) {
-    if (!normalizeTitle(contentName)) return null;
+function matchesSeason(title, season, language, titles) {
+    if (!(season > 0)) return true;
+    const normalized = withoutTitles(title, titles);
+    const translations = [getTranslation(language), TRANSLATIONS['en-US']];
+    const markers = [...new Set(translations.map(t => normalizeTitle(t.season)))];
+    let found = false;
+    // Also recognize another season explicitly, so "Season 1 & Season 2"
+    // compilations cannot silently stand in for the requested season.
+    const numbers = new Map();
+    for (const t of translations) {
+        for (const [n, words] of Object.entries(t.numberWords)) {
+            for (const word of words) numbers.set(normalizeTitle(word), Number(n));
+        }
+    }
+    for (const marker of markers) {
+        const patterns = ['(?:^| )' + marker + ' (\\S+)', '(?:^| )(\\S+) ' + marker + '(?= |$)'];
+        for (const source of patterns) {
+            for (const match of normalized.matchAll(new RegExp(source, 'gu'))) {
+                const word = match[1];
+                const numeral = word.match(/^(\d+)(?:a|o|ª|º)?$/u);
+                const n = numbers.get(word) || (numeral ? Number(numeral[1]) : null);
+                if (n !== null) {
+                    if (n !== Number(season)) return false;
+                    found = true;
+                }
+            }
+        }
+    }
+    for (const match of normalized.matchAll(/\bs(\d+)\b/gu)) {
+        if (Number(match[1]) !== Number(season)) return false;
+        found = true;
+    }
+    return found;
+}
+
+async function searchYouTubeTrailer(identity, type, season, language, strictLanguage, availability) {
+    const titles = [...new Set(identity.titles.filter(title => normalizeTitle(title)))];
+    if (!titles.length || (type === 'movie' && !identity.year)) return null;
     const t = getTranslation(language);
-    const name = type === 'series' && season > 0 ? contentName + ' ' + t.season + ' ' + season : contentName;
-    const queries = [name + ' ' + t.trailer];
-    // Brazilian subtitled releases are often absent from a dubbed-only search.
-    if (language === 'pt-BR') queries.push(name + ' trailer legendado pt-BR');
+    const queries = titles.slice(0, 2).flatMap(title => {
+        const name = type === 'series' && season > 0 ? title + ' ' + t.season + ' ' + season :
+            type === 'movie' ? title + ' ' + identity.year : title;
+        const localized = [name + ' ' + t.trailer];
+        // Brazilian subtitled releases are often absent from a dubbed-only search.
+        if (language === 'pt-BR') localized.push(name + ' trailer legendado pt-BR');
+        return localized;
+    });
     const results = await Promise.all(queries.map(query => searchYouTubeScraping(query, language)));
     const candidates = results.flat();
     const seen = new Set();
     const ranked = candidates.filter(candidate => {
-        if (seen.has(candidate.ytId)) return false;
-        seen.add(candidate.ytId);
-        return (' ' + normalizeTitle(candidate.title) + ' ').includes(' ' + normalizeTitle(contentName) + ' ');
-    }).map(candidate => ({ ...candidate, score: languageScore(candidate.title, contentName, language) }))
+        return matchesSearchIdentity(candidate.title, identity, type) &&
+            (type !== 'series' || matchesSeason(candidate.title, season, language, titles));
+    }).map(candidate => ({ ...candidate, score: languageScore(candidate.title, titles, language) }))
         .filter(candidate => candidate.score >= (strictLanguage ? 1 : 0))
-        .sort((a, b) => b.score - a.score);
+        .sort((a, b) => b.score - a.score)
+        .filter(candidate => {
+            // YouTube can localize a video's title differently between queries.
+            // Keep its best eligible caption rather than its first appearance.
+            if (seen.has(candidate.ytId)) return false;
+            seen.add(candidate.ytId);
+            return true;
+        });
     return selectAvailableTrailer(ranked, language, availability);
 }
 
@@ -485,18 +538,22 @@ async function getTrailerStreams(type, imdbId, contentName, season, tmdbId, lang
         // Get TMDB ID and title
         let tmdbIdNum;
         let contentTitle = contentName || '';
+        let identity = mediaIdentity({}, type);
 
         if (tmdbId) {
             // TMDB ID provided directly
             tmdbIdNum = tmdbId;
-            // Fetch title from TMDB if not provided
-            if (!contentTitle) {
+            // Caller-supplied names (including Kitsu names) are display hints,
+            // not proof of identity. Resolve canonical metadata even with a name.
+            {
                 const mediaType = type === 'series' ? 'tv' : 'movie';
                 try {
                     const url = `${TMDB_BASE}/${mediaType}/${tmdbId}?api_key=${TMDB_KEY}&language=${language}`;
                     const response = await fetchWithTimeout(url);
+                    if (!response.ok) throw new Error('TMDB metadata unavailable');
                     const data = await response.json();
-                    contentTitle = data.title || data.name || '';
+                    identity = mediaIdentity(data, type);
+                    contentTitle = identity.title || contentTitle;
                 } catch (e) {
                     console.log(`[TrailerProvider] Could not fetch title for TMDB ${tmdbId}`);
                 }
@@ -509,9 +566,8 @@ async function getTrailerStreams(type, imdbId, contentName, season, tmdbId, lang
                 return [];
             }
             tmdbIdNum = tmdbResult.id;
-            if (!contentTitle) {
-                contentTitle = tmdbResult.title;
-            }
+            identity = tmdbResult;
+            contentTitle = identity.title || contentTitle;
         } else {
             console.log('[TrailerProvider] No valid ID provided');
             return [];
@@ -523,7 +579,7 @@ async function getTrailerStreams(type, imdbId, contentName, season, tmdbId, lang
         console.log(`[TrailerProvider] Step 1: Trying TMDB ${language} for "${contentTitle}"`);
 
         const tmdbLangTrailer = await findTMDBTrailer(tmdbIdNum, type, language, season,
-            contentTitle, strictLanguage, availability);
+            identity.titles.length ? identity.titles : [contentTitle], strictLanguage, availability);
         if (tmdbLangTrailer) {
             console.log(`[TrailerProvider] ✓ Found TMDB ${language} trailer: ${tmdbLangTrailer.title}`);
             trailerResult = {
@@ -537,7 +593,7 @@ async function getTrailerStreams(type, imdbId, contentName, season, tmdbId, lang
         if (!trailerResult) {
             console.log(`[TrailerProvider] Step 2: Trying YouTube (${language}) for "${contentTitle}"`);
 
-            const ytResult = await searchYouTubeTrailer(contentTitle, type, season, language, strictLanguage, availability);
+            const ytResult = await searchYouTubeTrailer(identity, type, season, language, strictLanguage, availability);
             if (ytResult) {
                 console.log(`[TrailerProvider] ✓ Found YouTube trailer: ${ytResult.title}`);
                 trailerResult = {
@@ -553,7 +609,7 @@ async function getTrailerStreams(type, imdbId, contentName, season, tmdbId, lang
             console.log(`[TrailerProvider] Step 3: Trying TMDB en-US for "${contentTitle}"`);
 
             const tmdbEnTrailer = await findTMDBTrailer(tmdbIdNum, type, 'en-US', season,
-                contentTitle, false, availability, language);
+                identity.titles.length ? identity.titles : [contentTitle], false, availability, language);
             if (tmdbEnTrailer) {
                 console.log(`[TrailerProvider] ✓ Found TMDB en-US trailer: ${tmdbEnTrailer.title}`);
                 trailerResult = {

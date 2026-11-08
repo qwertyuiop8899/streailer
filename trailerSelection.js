@@ -17,16 +17,46 @@ const LANGUAGE_HINTS = {
 };
 
 function normalizeTitle(value) {
-    return (value || '').toLowerCase().normalize('NFD')
+    return (typeof value === 'string' ? value : '').toLowerCase().normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '').replace(/[^\p{L}\p{M}\p{N}]+/gu, ' ').trim();
+}
+
+function identityTitles(titles) {
+    return [...new Set(titles.map(normalizeTitle).filter(Boolean))].sort((a, b) => b.length - a.length);
+}
+
+function withoutTitles(title, titles) {
+    let remaining = ' ' + normalizeTitle(title) + ' ';
+    for (const alias of identityTitles(titles)) {
+        remaining = remaining.replace(' ' + alias + ' ', ' ');
+    }
+    return remaining;
+}
+
+// Search ranking is not a reliable media identifier. Require a canonical title
+// and a corroborating release year for movies; TMDB-linked videos bypass this
+// search-only check because they are already associated with the requested ID.
+function matchesSearchIdentity(title, identity, type) {
+    const normalized = ' ' + normalizeTitle(title) + ' ';
+    const titles = identityTitles(identity.titles || []);
+    const matched = titles.find(alias => normalized.includes(' ' + alias + ' '));
+    if (!matched) return false;
+    if (type !== 'movie') return true;
+    const suffix = normalized.slice(normalized.indexOf(' ' + matched + ' ') + matched.length + 2);
+    // A base title must not match a numbered sequel. Numbers after "Trailer"
+    // are trailer editions, and a four-digit release year is not a sequel.
+    if (/^(?:(?:part|chapter|parte|capitulo)\s+(?:\d+|[ivx]+|one|two|three|four|um|dois|tres|quatro)\b|(?:\d{1,3}|[ivx]+)\b)/u.test(suffix)) return false;
+    if (!identity.year) return false;
+    // Remove the title span that established the match, not unused numeric
+    // aliases that may actually be the release year ("Nineteen Eighty-Four, 1984").
+    const years = normalized.replace(' ' + matched + ' ', ' ').match(/\b(?:18|19|20|21)\d{2}\b/g) || [];
+    return years.length > 0 && years.every(year => Number(year) === identity.year);
 }
 
 // -1 rejects a known mismatch, 0 is unknown, and higher scores prefer
 // localized trailers. TMDB language metadata can verify otherwise neutral titles.
 function languageScore(title, contentName, language, metadata = {}) {
-    const normalized = normalizeTitle(title);
-    const content = normalizeTitle(contentName);
-    const hints = content ? (' ' + normalized + ' ').replace(' ' + content + ' ', ' ') : normalized;
+    const hints = withoutTitles(title, Array.isArray(contentName) ? contentName : [contentName]);
     const [requested, region] = language.split('-');
     const matches = Object.entries(LANGUAGE_HINTS)
         .filter(([, pattern]) => pattern.test(hints)).map(([code]) => code);
@@ -111,4 +141,4 @@ function isAvailableInRegion(html, region) {
     return true;
 }
 
-module.exports = { normalizeTitle, languageScore, extractYouTubeData, parseSearchCandidates, isAvailableInRegion };
+module.exports = { normalizeTitle, withoutTitles, languageScore, matchesSearchIdentity, extractYouTubeData, parseSearchCandidates, isAvailableInRegion };

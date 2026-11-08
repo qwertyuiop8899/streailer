@@ -49,12 +49,12 @@ async function run() {
         assert.strictEqual((await trailers({ strict: true }))[0].ytId, ids.subtitled);
     });
     await test('strict mode rejects unknown language and disables English fallback', async () => {
-        const state = reset({ candidates: [german, { ytId: ids.unknown, title: 'Primetime Official Trailer' }], english: [tmdb(ids.english, { iso_639_1: 'en', iso_3166_1: 'US' })] });
+        const state = reset({ candidates: [german, { ytId: ids.unknown, title: 'Primetime (2026) Official Trailer' }], english: [tmdb(ids.english, { iso_639_1: 'en', iso_3166_1: 'US' })] });
         assert.deepStrictEqual(await trailers({ strict: 'true' }), []);
         assert.ok(!state.calls.some(url => url.searchParams.get('language') === 'en-US'));
     });
     await test('legacy configs retain neutral search results', async () => {
-        reset({ candidates: [{ ytId: ids.unknown, title: 'Primetime Official Trailer' }] });
+        reset({ candidates: [{ ytId: ids.unknown, title: 'Primetime (2026) Official Trailer' }] });
         assert.strictEqual((await trailers({ strict: 'false' }))[0].ytId, ids.unknown);
     });
     await test('legacy configs retain labeled TMDB English fallback', async () => {
@@ -76,7 +76,7 @@ async function run() {
         assert.strictEqual((await trailers({ strict: true }))[0].ytId, ids.subtitled);
     });
     await test('availability checks continue past five blocked results', async () => {
-        const blocked = Array.from({ length: 5 }, (_, i) => ({ ytId: 'blocked000' + i, title: 'Primetime Trailer Dublado ' + i }));
+        const blocked = Array.from({ length: 5 }, (_, i) => ({ ytId: 'blocked000' + i, title: 'Primetime (2026) Trailer Dublado ' + i }));
         reset({ candidates: [...blocked, dubbed], watch: Object.fromEntries(blocked.map(video => [video.ytId, playerHtml(['DE'])])) });
         assert.strictEqual((await trailers({ strict: true }))[0].ytId, ids.dubbed);
     });
