@@ -53,7 +53,7 @@ async function run() {
             { site: 'YouTube', key: 'A2MA-QCwDGU', type: 'Trailer', official: true,
                 name: 'A REVOLTA (The Uprising) - Trailer Oficial Legendado PT',
                 iso_639_1: 'pt', iso_3166_1: 'PT' },
-            realTmdbVideo
+            { ...realTmdbVideo, iso_3166_1: 'PT' }
         ];
         // Either is an acceptable associated Portuguese trailer; the result
         // should be chosen by ordinary ranking and order, not a special ID.
@@ -82,7 +82,7 @@ async function run() {
             iso_639_1: 'pt', iso_3166_1: 'PT' };
         for (const invalid of [fixture.playerHtml(['PT']), fixture.playerHtml(['BR', 'PT'], '', 800)]) {
             reset({ metadata: rebel, localized: [], candidates: [],
-                portugal: [first, realTmdbVideo], watch: { [first.key]: invalid } });
+                portugal: [first, { ...realTmdbVideo, iso_3166_1: 'PT' }], watch: { [first.key]: invalid } });
             assertVideo(await trailers({ strict: false }), realTmdbVideo.key);
         }
     });
