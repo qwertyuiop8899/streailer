@@ -6,6 +6,7 @@
 
 const fetch = require('node-fetch');
 const { normalizeTitle, withoutTitles, languageScore, matchesSearchIdentity, parseSearchCandidates, isAvailableInRegion, playerVideoInfo, isTrailerLikeTitle, isNonTrailerContent } = require('./trailerSelection');
+const { getYouTubeVideoMetadata, isVideoExcluded, audioLanguageBonus } = require('./youtubeMetadata');
 const YOUTUBE_HEADERS = { 'User-Agent': 'Mozilla/5.0', 'Accept-Language': 'en-US,en;q=0.9' };
 
 // TMDB API configuration
@@ -373,11 +374,34 @@ async function inspectYouTubeVideo(ytId, region) {
     }
 }
 
-/** Check a bounded set of candidates while preserving their ranked order. */
-async function selectAvailableTrailer(candidates, language, availability, requireDuration = false) {
+/**
+ * Verify a bounded list in one YouTube Data API batch when YOUTUBE_API_KEY is
+ * configured. The published default audio language can strengthen a language
+ * score, but caption=true is NOT proof of subtitles in the requested language.
+ * Existing watch-page checks remain a second availability signal.
+ */
+async function selectAvailableTrailer(candidates, language, availability, requireDuration = false, minScore = 0) {
     const region = language.split('-')[1];
-    for (let offset = 0; offset < Math.min(candidates.length, 10); offset += 5) {
-        const checked = await Promise.all(candidates.slice(offset, offset + 5).map(async candidate => {
+    const verified = await getYouTubeVideoMetadata(candidates.slice(0, 30).map(v => v.ytId));
+    const eligible = candidates.map((candidate, position) => {
+        if (candidate.score < 0) return null; // explicit language mismatch
+        const apiVideo = verified ? verified.get(candidate.ytId) : null;
+        // An authoritative successful API response with no matching ID means
+        // unavailable/private, unlike a failed API request (verified === null).
+        if (verified && isVideoExcluded(apiVideo, region, MAX_TRAILER_DURATION_SECONDS)) return null;
+        return {
+            ...candidate,
+            score: (candidate.score || 0) + audioLanguageBonus(apiVideo, language, candidate.score || 0),
+            apiVideo,
+            position
+        };
+    }).filter(candidate => candidate && candidate.score >= minScore);
+    // Preserve the existing priority when the API is disabled. When enabled,
+    // a confirmed matching default-audio language may outrank title-only hints.
+    if (verified) eligible.sort((a, b) => b.score - a.score || a.position - b.position);
+
+    for (let offset = 0; offset < Math.min(eligible.length, 10); offset += 5) {
+        const checked = await Promise.all(eligible.slice(offset, offset + 5).map(async candidate => {
             if (candidate.live === true || (candidate.durationSeconds != null &&
                 candidate.durationSeconds > MAX_TRAILER_DURATION_SECONDS)) return null;
             if (!availability.has(candidate.ytId)) {
@@ -386,10 +410,10 @@ async function selectAvailableTrailer(candidates, language, availability, requir
             const video = await availability.get(candidate.ytId);
             if (!video.available || video.live) return null;
             if (video.durationSeconds !== null && video.durationSeconds > MAX_TRAILER_DURATION_SECONDS) return null;
-            // TMDB links have a verified movie/series association, whereas
-            // scraped search results must establish their duration to qualify.
+            // TMDB-linked videos have an identity association; scraped results
+            // still require a duration from either API, watch page or search.
             if (requireDuration && video.durationSeconds === null &&
-                candidate.durationSeconds == null) return null;
+                candidate.durationSeconds == null && candidate.apiVideo?.durationSeconds == null) return null;
             return candidate;
         }));
         const available = checked.find(Boolean);
@@ -410,9 +434,8 @@ async function selectBestTrailer(videos, contentName, language, strictLanguage, 
             priority: (video.official ? 0 : 3) + typePriority.indexOf(video.type),
             supported: typePriority.includes(video.type)
         }))
-        .filter(v => v.score >= (strictLanguage ? 1 : 0))
         .sort((a, b) => b.score - a.score || Number(b.supported) - Number(a.supported) || a.priority - b.priority);
-    return selectAvailableTrailer(candidates, regionLanguage, availability);
+    return selectAvailableTrailer(candidates, regionLanguage, availability, false, strictLanguage ? 1 : 0);
 }
 
 async function findTMDBTrailer(tmdbId, type, language, season, contentName, strictLanguage, availability, regionLanguage = language) {
@@ -494,7 +517,6 @@ async function searchYouTubeTrailer(identity, type, season, language, strictLang
             matchesSearchIdentity(candidate.title, identity, type) &&
             (type !== 'series' || matchesSeason(candidate.title, season, language, titles));
     }).map(candidate => ({ ...candidate, score: languageScore(candidate.title, titles, language) }))
-        .filter(candidate => candidate.score >= (strictLanguage ? 1 : 0))
         .sort((a, b) => b.score - a.score)
         .filter(candidate => {
             // YouTube can localize a video's title differently between queries.
@@ -503,7 +525,7 @@ async function searchYouTubeTrailer(identity, type, season, language, strictLang
             seen.add(candidate.ytId);
             return true;
         });
-    return selectAvailableTrailer(ranked, language, availability, true);
+    return selectAvailableTrailer(ranked, language, availability, true, strictLanguage ? 1 : 0);
 }
 
 function formatStreamTarget(ytId, playerTarget = 'internal', useExternalLink = false) {

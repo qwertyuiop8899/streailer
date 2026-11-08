@@ -54,6 +54,22 @@ function response(value, status = 200) {
 async function fakeFetch(input) {
     const url = new URL(input);
     state.calls.push(url);
+    if (url.hostname === 'www.googleapis.com' && url.pathname === '/youtube/v3/videos') {
+        if (state.apiError) throw new Error('YouTube Data API offline');
+        if (state.apiStatus && state.apiStatus !== 200) return response({ error: 'quota' }, state.apiStatus);
+        const ids = (url.searchParams.get('id') || '').split(',').filter(Boolean);
+        const provided = state.apiVideos;
+        const items = ids.map(id => {
+            if (provided && !Object.prototype.hasOwnProperty.call(provided, id)) return null;
+            return provided ? provided[id] : {
+                id, snippet: { title: 'Fixture trailer', channelId: 'fixture-channel',
+                    liveBroadcastContent: 'none' },
+                contentDetails: { duration: 'PT2M30S', caption: 'false' },
+                status: { privacyStatus: 'public', uploadStatus: 'processed', embeddable: true }
+            };
+        }).filter(Boolean);
+        return response({ items });
+    }
     if (url.hostname === 'api.themoviedb.org') {
         if (url.pathname.endsWith('/videos')) {
             const locale = url.searchParams.get('language');

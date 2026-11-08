@@ -35,9 +35,13 @@ With the new **External Link** option, trailers open directly in your device's *
 ```
 1️⃣ TMDB (Your Language)    → Found? ✅ Done!
                                  ↓ Not found
-2️⃣ YouTube Search          → Found? ✅ Done!
-   (localized query)             ↓ Not found  
-3️⃣ TMDB (English)          → Fallback trailer
+2️⃣ YouTube Search          → Localized / dubbed / subtitled
+                                 ↓ No eligible match
+3️⃣ TMDB (pt-PT)           → Optional fallback for pt-BR
+                                 ↓ Not found
+4️⃣ TMDB (English)         → Fallback trailer
+                                 ↓ Not found
+5️⃣ Neutral YouTube         → Last fallback, when permitted
 ```
 
 For a `pt-BR` request with strict language disabled, Streailer first tries
@@ -78,6 +82,40 @@ series name, requested season and duration, with a default
 playing unrelated episodes as recaps, including numbered items such as
 `EP01`, `E01`, `S01E01`, and `1x01`, although some valid long or atypically
 named videos may be omitted.
+
+### Optional YouTube Data API verification
+
+Set `YOUTUBE_API_KEY` in the **server container environment** to enable
+batch validation of trailer candidates using the official YouTube Data API v3
+`videos.list` endpoint (parts `snippet,contentDetails,status`). Do not put
+the key in the add-on manifest, public URLs, GitHub repository, or frontend.
+Restrict the key to **YouTube Data API v3** in Google Cloud, and where
+practical restrict allowed source IPs. The legacy TMDB/YouTube fallback still
+works if the key is missing, expired, rate-limited, or the API is unavailable.
+
+The optional API checks each candidate's published duration, livestream,
+private/deleted status and country restrictions; the existing YouTube watch
+page check remains in place. Exact matching `snippet.defaultAudioLanguage`
+provides positive evidence about the **default spoken audio track** and can
+increase ranking confidence. An unspecified region such as `pt` does not
+prove `pt-BR`. The `snippet.defaultLanguage` field describes metadata text,
+not spoken audio. `contentDetails.caption=true` only indicates captions
+exist: it cannot confirm **Portuguese** caption languages, hardcoded subtitles,
+or optional alternative audio tracks. A video title claiming "legendado" or
+"dublado" remains a *hint*, not a verified media-track inspection. The Data
+API channel ID and channel title are identifiers, not proof of an official or
+verified studio channel.
+
+Successful responses are cached **in process for 6 hours**; missing video IDs
+are cached for 15 minutes, up to 1,000 entries, without requiring Redis or
+another service. A container restart clears this cache. Each API batch verifies
+up to 50 IDs; current trailer selection requests metadata only for up to 30
+ranked candidates per source/locale. Requests use a four-second timeout and
+fall back to the existing checks after API errors. API region restrictions
+refer to the country of the requested language (for example, `BR` for
+`pt-BR`). Availability, identity and language still cannot be guaranteed
+for every video, especially after changes to external metadata or playback
+restrictions.
 
 Availability checks use YouTube's published
 country list for the country in the selected locale (for example, `BR` for `pt-BR`)
