@@ -1,0 +1,442 @@
+const assert = require('assert');
+const http = require('http');
+const path = require('path');
+const { spawn } = require('child_process');
+const fixture = require('./fixtures/trailer-fetch');
+const { ids, german, dubbed, subtitled, reset, searchHtml, playerHtml } = fixture;
+const { getTrailerStreams } = require(process.env.BASELINE_PROVIDER || '../trailerProvider');
+const { languageScore, parseSearchCandidates, isAvailableInRegion, isTrailerLikeTitle, parseDurationSeconds, playerVideoInfo, matchesVerifiedVideoIdentity } = require('../trailerSelection');
+
+let passed = 0;
+async function test(name, run) {
+    reset();
+    await run();
+    passed++;
+    console.log('PASS ' + name);
+}
+function trailers(options = {}) {
+    const { language = 'pt-BR', strict = false, target = 'internal', external = false, type = 'movie', season } = options;
+    return getTrailerStreams(type, 'tt34206385', 'Primetime', season, 123, language, external, target, strict);
+}
+function tmdb(key, extra = {}) {
+    return { site: 'YouTube', type: 'Trailer', official: true, key, name: 'Official Trailer', iso_639_1: 'pt', iso_3166_1: 'BR', ...extra };
+}
+function getHeaders(port, route) {
+    return new Promise((resolve, reject) => {
+        http.get({ hostname: '127.0.0.1', port, path: route }, response => {
+            response.resume();
+            response.on('end', () => resolve(response.headers));
+        }).on('error', reject);
+    });
+}
+
+function getJson(port, route) {
+    return new Promise((resolve, reject) => {
+        http.get({ hostname: '127.0.0.1', port, path: route }, response => {
+            let body = '';
+            response.on('data', chunk => { body += chunk; });
+            response.on('end', () => {
+                try { assert.strictEqual(response.statusCode, 200); resolve(JSON.parse(body)); }
+                catch (error) { reject(error); }
+            });
+        }).on('error', reject);
+    });
+}
+
+async function run() {
+    await test('issue #22 skips the first German result and prefers dubbed over subtitled', async () => {
+        const streams = await trailers();
+        assert.strictEqual(streams[0].ytId, ids.dubbed);
+        assert.strictEqual(streams[0].title, dubbed.title);
+    });
+    await test('strict mode returns Portuguese subtitles when dubbing is absent', async () => {
+        reset({ candidates: [german, subtitled] });
+        assert.strictEqual((await trailers({ strict: true }))[0].ytId, ids.subtitled);
+    });
+    await test('subtitle search finds releases missing from dubbed search', async () => {
+        reset({ candidates: url => url.searchParams.get('search_query').includes('legendado') ? [subtitled] : [german] });
+        assert.strictEqual((await trailers({ strict: true }))[0].ytId, ids.subtitled);
+    });
+    await test('strict mode rejects unknown language and disables English fallback', async () => {
+        const state = reset({ candidates: [german, { ytId: ids.unknown, title: 'Primetime (2026) Official Trailer' }], english: [tmdb(ids.english, { iso_639_1: 'en', iso_3166_1: 'US' })] });
+        assert.deepStrictEqual(await trailers({ strict: 'true' }), []);
+        assert.ok(!state.calls.some(url => url.searchParams.get('language') === 'en-US'));
+    });
+    await test('legacy configs retain neutral search results', async () => {
+        reset({ candidates: [{ ytId: ids.unknown, title: 'Primetime (2026) Official Trailer' }] });
+        assert.strictEqual((await trailers({ strict: 'false' }))[0].ytId, ids.unknown);
+    });
+    await test('TMDB pt-PT subtitled trailer outranks English and language-neutral YouTube', async () => {
+        const ptTrailer = tmdb('zzPbA9yalhc', {
+            name: 'A REVOLTA (The Uprising) | Trailer Legendado PT',
+            iso_639_1: 'pt', iso_3166_1: 'PT'
+        });
+        const state = reset({
+            localized: [],
+            portugal: [ptTrailer],
+            candidates: [{ ytId: ids.unknown, title: 'Primetime (2026) Official Trailer 4K', durationSeconds: 160 }],
+            english: [tmdb(ids.english, { iso_639_1: 'en', iso_3166_1: 'US' })]
+        });
+        const streams = await trailers({ strict: false });
+        assert.strictEqual(streams[0].ytId, 'zzPbA9yalhc');
+        assert.ok(streams[0].name.includes('🇵🇹'));
+        assert.ok(state.calls.some(url => url.searchParams.get('language') === 'pt-PT'));
+        assert.ok(!state.calls.some(url => url.searchParams.get('language') === 'en-US'));
+    });
+    await test('pt-BR dubbed and subtitled TMDB trailers remain ahead of pt-PT', async () => {
+        for (const video of [
+            tmdb(ids.dubbed, { name: 'Primetime (2026) Trailer Dublado' }),
+            tmdb(ids.subtitled, { name: 'Primetime (2026) Trailer Legendado PT-BR' })
+        ]) {
+            const state = reset({ localized: [video], portugal: [tmdb('zzPbA9yalhc', {
+                name: 'Primetime (2026) Trailer Legendado PT', iso_639_1: 'pt', iso_3166_1: 'PT'
+            })] });
+            assert.strictEqual((await trailers())[0].ytId, video.key);
+            assert.ok(!state.calls.some(url => url.searchParams.get('language') === 'pt-PT'));
+        }
+    });
+    await test('pt-BR localized YouTube subtitles are preferred to the pt-PT TMDB fallback', async () => {
+        const state = reset({
+            localized: [],
+            portugal: [tmdb('zzPbA9yalhc', {
+                name: 'Primetime (2026) Trailer Legendado PT', iso_639_1: 'pt', iso_3166_1: 'PT'
+            })],
+            candidates: [subtitled]
+        });
+        assert.strictEqual((await trailers())[0].ytId, ids.subtitled);
+        assert.ok(!state.calls.some(url => url.searchParams.get('language') === 'pt-PT'));
+    });
+    await test('strict pt-BR does not silently fall back to pt-PT', async () => {
+        const state = reset({
+            localized: [], portugal: [tmdb('zzPbA9yalhc', {
+                iso_639_1: 'pt', iso_3166_1: 'PT'
+            })],
+            candidates: [{ ytId: ids.unknown, title: 'Primetime (2026) Official Trailer', durationSeconds: 140 }]
+        });
+        assert.deepStrictEqual(await trailers({ strict: true }), []);
+        assert.ok(!state.calls.some(url => url.searchParams.get('language') === 'pt-PT'));
+    });
+    await test('Portuguese locale metadata rejects European records in the Brazilian TMDB step', async () => {
+        const state = reset({
+            localized: [tmdb('zzPbA9yalhc', { name: 'Trailer Legendado',
+                iso_639_1: 'pt', iso_3166_1: 'PT' })],
+            portugal: [tmdb('zzPbA9yalhc', { name: 'Trailer Legendado',
+                iso_639_1: 'pt', iso_3166_1: 'PT' })],
+            candidates: []
+        });
+        const streams = await trailers();
+        assert.strictEqual(streams[0].ytId, 'zzPbA9yalhc');
+        assert.ok(streams[0].name.includes('🇵🇹'));
+        assert.ok(state.calls.some(url => url.searchParams.get('language') === 'pt-PT'));
+    });
+    await test('pt-PT trailer blocked in Brazil falls through to English TMDB', async () => {
+        const state = reset({
+            localized: [],
+            portugal: [tmdb('zzPbA9yalhc', {
+                name: 'Trailer Legendado', iso_639_1: 'pt', iso_3166_1: 'PT'
+            })],
+            candidates: [],
+            english: [tmdb(ids.english, { iso_639_1: 'en', iso_3166_1: 'US' })],
+            watch: { 'zzPbA9yalhc': playerHtml(['PT']) }
+        });
+        assert.strictEqual((await trailers())[0].ytId, ids.english);
+        assert.ok(state.calls.some(url => url.searchParams.get('language') === 'en-US'));
+    });
+    await test('English TMDB association outranks neutral YouTube aggregator on a pt-BR request', async () => {
+        reset({
+            candidates: [{ ytId: ids.unknown, title: 'Primetime (2026) Official Trailer 4K', durationSeconds: 150 }],
+            english: [tmdb(ids.english, { name: 'Official Trailer', iso_639_1: 'en', iso_3166_1: 'US', official: true })]
+        });
+        const streams = await trailers({ strict: false });
+        assert.strictEqual(streams[0].ytId, ids.english);
+        assert.ok(streams[0].name.includes('🇬🇧'));
+    });
+    await test('verified localized YouTube dubbing outranks English TMDB fallback', async () => {
+        const state = reset({
+            candidates: [dubbed, { ytId: ids.unknown, title: 'Primetime (2026) Official Trailer', durationSeconds: 150 }],
+            english: [tmdb(ids.english, { iso_639_1: 'en', iso_3166_1: 'US', official: true })]
+        });
+        const streams = await trailers({ strict: false });
+        assert.strictEqual(streams[0].ytId, ids.dubbed);
+        assert.ok(!state.calls.some(url => url.searchParams.get('language') === 'en-US'));
+    });
+    await test('neutral YouTube remains available when TMDB English has no linked trailer', async () => {
+        reset({
+            candidates: [{ ytId: ids.unknown, title: 'Primetime (2026) Official Trailer', durationSeconds: 125 }],
+            english: []
+        });
+        assert.strictEqual((await trailers({ strict: false }))[0].ytId, ids.unknown);
+    });
+    await test('region-blocked English TMDB falls back to eligible neutral YouTube', async () => {
+        reset({
+            candidates: [{ ytId: ids.unknown, title: 'Primetime (2026) Official Trailer', durationSeconds: 125 }],
+            english: [tmdb(ids.english, { iso_639_1: 'en', iso_3166_1: 'US' })],
+            watch: { [ids.english]: playerHtml(['US']) }
+        });
+        assert.strictEqual((await trailers({ strict: false }))[0].ytId, ids.unknown);
+    });
+    await test('legacy configs retain labeled TMDB English fallback', async () => {
+        reset({ candidates: [german], english: [tmdb(ids.english, { iso_639_1: 'en', iso_3166_1: 'US' })] });
+        const streams = await trailers();
+        assert.strictEqual(streams[0].ytId, ids.english);
+        assert.ok(streams[0].name.includes('🇬🇧'));
+    });
+    await test('regional availability skips blocked dubbed videos', async () => {
+        reset({ watch: { [ids.dubbed]: playerHtml(['DE']) } });
+        assert.strictEqual((await trailers())[0].ytId, ids.subtitled);
+    });
+    await test('private video is skipped', async () => {
+        reset({ watch: { [ids.dubbed]: playerHtml(['BR'], 'This video is private.') } });
+        assert.strictEqual((await trailers())[0].ytId, ids.subtitled);
+    });
+    await test('subtitle search still runs when a dubbed search result is blocked', async () => {
+        reset({ candidates: url => url.searchParams.get('search_query').includes('legendado') ? [subtitled] : [dubbed], watch: { [ids.dubbed]: playerHtml(['DE']) } });
+        assert.strictEqual((await trailers({ strict: true }))[0].ytId, ids.subtitled);
+    });
+    await test('availability checks continue past five blocked results', async () => {
+        const blocked = Array.from({ length: 5 }, (_, i) => ({ ytId: 'blocked000' + i, title: 'Primetime (2026) Trailer Dublado ' + i }));
+        reset({ candidates: [...blocked, dubbed], watch: Object.fromEntries(blocked.map(video => [video.ytId, playerHtml(['DE'])])) });
+        assert.strictEqual((await trailers({ strict: true }))[0].ytId, ids.dubbed);
+    });
+    await test('unknown availability preserves eligible candidates', async () => {
+        reset({ candidates: [{ ...dubbed, durationSeconds: 155 }, subtitled], watch: { [ids.dubbed]: new Error('timeout') } });
+        assert.strictEqual((await trailers())[0].ytId, ids.dubbed);
+        assert.strictEqual(isAvailableInRegion('<html>Consent required</html>', 'BR'), true);
+        assert.strictEqual(isAvailableInRegion(playerHtml(['BR'], "Sign in to confirm you're not a bot"), 'BR'), true);
+    });
+    await test('English fallback is checked against the requested Brazilian region', async () => {
+        reset({ candidates: [], english: [tmdb(ids.english, { iso_639_1: 'en', iso_3166_1: 'US' })], watch: { [ids.english]: playerHtml(['US']) } });
+        assert.deepStrictEqual(await trailers(), []);
+    });
+    await test('TMDB metadata verifies neutral localized titles in strict mode', async () => {
+        reset({ localized: [tmdb(ids.dubbed)] });
+        assert.strictEqual((await trailers({ strict: true }))[0].ytId, ids.dubbed);
+    });
+    await test('TMDB rejects mismatched titles, metadata, and Portuguese regions', async () => {
+        reset({ localized: [tmdb(ids.german, { name: german.title }), tmdb(ids.unknown, { iso_639_1: 'de' }), tmdb(ids.english, { iso_3166_1: 'PT' }), tmdb(ids.dubbed)] });
+        assert.strictEqual((await trailers({ strict: true }))[0].ytId, ids.dubbed);
+    });
+    await test('TMDB checks the next candidate after an unavailable official video', async () => {
+        reset({ localized: [tmdb(ids.unknown), tmdb(ids.dubbed, { official: false })], watch: { [ids.unknown]: playerHtml(['DE']) } });
+        assert.strictEqual((await trailers())[0].ytId, ids.dubbed);
+    });
+    await test('TMDB ranks official trailers before teasers and clips for equal language evidence', async () => {
+        reset({ localized: [tmdb(ids.unknown, { type: 'Clip' }), tmdb(ids.subtitled, { type: 'Teaser' }), tmdb(ids.dubbed)] });
+        assert.strictEqual((await trailers())[0].ytId, ids.dubbed);
+    });
+    await test('movie-length YouTube results are rejected even when labeled trailers', async () => {
+        reset({
+            candidates: [dubbed, subtitled],
+            watch: { [ids.dubbed]: playerHtml(['BR'], '', 7300) }
+        });
+        assert.strictEqual((await trailers())[0].ytId, ids.subtitled);
+    });
+    await test('long durations from search data are rejected without needing watch metadata', async () => {
+        const long = { ...dubbed, durationSeconds: 7500 };
+        reset({ candidates: [long, subtitled], watch: { [ids.dubbed]: new Error('timeout') } });
+        assert.strictEqual((await trailers())[0].ytId, ids.subtitled);
+    });
+    await test('live streams are excluded even with matching localized trailer titles', async () => {
+        reset({ candidates: [{ ...dubbed, live: true }, subtitled] });
+        assert.strictEqual((await trailers())[0].ytId, ids.subtitled);
+    });
+    await test('non-trailer commentary cannot displace a legitimate localized trailer', async () => {
+        reset({ candidates: [
+            { ytId: ids.unknown, title: 'Primetime (2026) Trailer Reaction Review Dublado', durationSeconds: 90 },
+            { ytId: ids.english, title: 'Primetime (2026) Filme completo em português', durationSeconds: 6500 },
+            subtitled
+        ] });
+        assert.strictEqual((await trailers())[0].ytId, ids.subtitled);
+    });
+    await test('missing duration fails closed for scraped search but preserves TMDB fallback', async () => {
+        reset({
+            candidates: [dubbed],
+            watch: { [ids.dubbed]: '<html>Consent required</html>' },
+            english: [tmdb(ids.english, { iso_639_1: 'en', iso_3166_1: 'US' })]
+        });
+        assert.strictEqual((await trailers())[0].ytId, ids.english);
+    });
+    await test('non-trailer TMDB types and misleading titles are excluded', async () => {
+        reset({ localized: [
+            tmdb(ids.unknown, { type: 'Featurette' }),
+            tmdb(ids.english, { name: 'Primetime (2026) Filme completo legendado' }),
+            tmdb(ids.dubbed)
+        ] });
+        assert.strictEqual((await trailers())[0].ytId, ids.dubbed);
+    });
+    await test('overlong TMDB video falls through to the next verified trailer', async () => {
+        reset({ localized: [tmdb(ids.unknown), tmdb(ids.dubbed)],
+            watch: { [ids.unknown]: playerHtml(['BR'], '', 7200) }
+        });
+        assert.strictEqual((await trailers())[0].ytId, ids.dubbed);
+    });
+    await test('actual YouTube title must corroborate TMDB association, not just language', async () => {
+        const film = { titles: ['Model Citizen'], year: 2026, runtimeMinutes: 93 };
+        assert.strictEqual(matchesVerifiedVideoIdentity(
+            'Model Citizen | Official Trailer | Warner Bros. Entertainment', film, 'movie', '2026-10-07'), true);
+        assert.strictEqual(matchesVerifiedVideoIdentity(
+            '"Model Citizen"(Cidadão Modelo) - David James PT-BR Legendado/tradução',
+            film, 'movie', '2026-11-03'), false);
+        assert.strictEqual(matchesVerifiedVideoIdentity(
+            'Model Citizen (2020) Trailer Legendado', film, 'movie', '2026-11-03'), false);
+        assert.strictEqual(matchesVerifiedVideoIdentity(
+            'Model Citizen (2026) Trailer', film, 'movie', '2020-01-10'), false);
+        assert.strictEqual(matchesVerifiedVideoIdentity(
+            'Model Citizen (2026) Animated Short Film Trailer', film, 'movie', '2026-11-03'), false);
+        assert.strictEqual(matchesVerifiedVideoIdentity(
+            'Another Citizen (2026) Official Trailer', film, 'movie', '2026-10-07'), false);
+        const uprising = { titles: ['O Rebelde', 'The Uprising'], year: 2026 };
+        assert.strictEqual(matchesVerifiedVideoIdentity(
+            'A REVOLTA (The Uprising) - Trailer Oficial Legendado PT', uprising, 'movie'), true);
+    });
+
+    await test('title screening does not penalize canonical films called Review', async () => {
+        assert.ok(isTrailerLikeTitle('The Review (2026) Official Trailer', ['The Review']));
+        assert.ok(!isTrailerLikeTitle('The Review (2026) Official Trailer Reaction', ['The Review']));
+    });
+    await test('real YouTube search lengths and watch lengths are parsed', async () => {
+        assert.strictEqual(parseDurationSeconds('2:03:40'), 7420);
+        assert.strictEqual(parseDurationSeconds('1:32'), 92);
+        assert.strictEqual(parseDurationSeconds('3:90'), null);
+        const parsed = parseSearchCandidates(searchHtml([
+            { ...dubbed, durationSeconds: 7420 }, { ...subtitled, live: true }
+        ]));
+        assert.strictEqual(parsed[0].durationSeconds, 7420);
+        assert.strictEqual(parsed[1].live, true);
+        assert.strictEqual(playerVideoInfo(playerHtml(['BR'], '', 150)).durationSeconds, 150);
+    });
+    await test('scraped trailers without any verifiable duration are skipped', async () => {
+        reset({ candidates: [dubbed], watch: { [ids.dubbed]: '<html>Consent required</html>' } });
+        assert.deepStrictEqual(await trailers({ strict: true }), []);
+    });
+    await test('valid Full Movie Trailer phrase is not confused with full movie playback', async () => {
+        reset({ candidates: [
+            { ytId: ids.subtitled, title: 'Primetime (2026) Full Movie Trailer Dublado', durationSeconds: 135 }
+        ] });
+        assert.strictEqual((await trailers({ strict: true }))[0].ytId, ids.subtitled);
+    });
+    await test('eligible trailer beyond ten unrelated search hits remains discoverable', async () => {
+        const noise = Array.from({ length: 10 }, (_, i) => ({
+            ytId: 'noise00000' + i, title: 'Unrelated Movie Official Trailer (2026)', durationSeconds: 120
+        }));
+        reset({ candidates: [...noise, subtitled] });
+        assert.strictEqual((await trailers({ strict: true }))[0].ytId, ids.subtitled);
+    });
+    await test('invalid IDs and unrelated video titles are rejected', async () => {
+        reset({ candidates: [{ ytId: ids.dubbed, title: 'Another Movie Trailer Dublado' }, { ytId: 'bad', title: dubbed.title }], localized: [tmdb('invalid')] });
+        assert.deepStrictEqual(await trailers({ strict: true }), []);
+    });
+    await test('malformed search pages and HTTP failures return empty streams safely', async () => {
+        for (const state of [{ html: 'var ytInitialData = {broken}' }, { searchStatus: 429 }, { searchError: true }]) {
+            reset(state);
+            assert.deepStrictEqual(await trailers({ strict: true }), []);
+        }
+    });
+    await test('search parser keeps each ID with its escaped title and deduplicates results', async () => {
+        const candidate = { ytId: ids.dubbed, title: 'Primetime "{2026}" \\ Trailer Dublado & ação' };
+        const html = '<script>{"videoId":"' + ids.german + '"}</script>' + searchHtml([candidate, candidate]);
+        assert.deepStrictEqual(parseSearchCandidates(html), [candidate]);
+        assert.deepStrictEqual(parseSearchCandidates(''), []);
+    });
+    await test('all supported language hints accept their own locale and reject other languages', async () => {
+        const languages = { 'en-US': 'English', 'pt-BR': 'Dublado', 'pt-PT': 'Português Portugal', 'de-DE': 'Deutsch', 'fr-FR': 'VF', 'es-MX': 'Español Latino', 'es-ES': 'Castellano', 'it-IT': 'Italiano', 'ru-RU': 'русский', 'ja-JP': '日本語', 'hi-IN': 'हिन्दी', 'ta-IN': 'தமிழ்', 'tr-TR': 'Türkçe', 'pl-PL': 'Polski', 'nl-NL': 'Nederlands', 'hu-HU': 'Magyar' };
+        for (const [locale, hint] of Object.entries(languages)) {
+            assert.ok(languageScore('Primetime Trailer ' + hint, 'Primetime', locale) > 0, locale);
+            if (!locale.startsWith('pt')) assert.strictEqual(languageScore('Primetime Trailer ' + hint, 'Primetime', 'pt-BR'), -1, locale);
+        }
+    });
+    await test('title words do not masquerade as language evidence', async () => {
+        assert.strictEqual(languageScore('The French Dispatch Official Trailer', 'The French Dispatch', 'pt-BR'), 0);
+        assert.strictEqual(languageScore('German Official Trailer Dublado', 'German', 'pt-BR'), 4);
+        assert.strictEqual(languageScore('Primetime Trailer Português Portugal', 'Primetime', 'pt-BR'), -1);
+        assert.strictEqual(languageScore('Primetime English Trailer legendado PT-BR', 'Primetime', 'pt-BR'), 2);
+    });
+    for (const target of ['internal', 'youtube', 'smarttube', 'tizentube']) {
+        await test('player target regression ' + target, async () => {
+            const stream = (await trailers({ target, strict: true }))[0];
+            if (target === 'internal') assert.strictEqual(stream.ytId, ids.dubbed);
+            else {
+                assert.ok(stream.externalUrl.includes(ids.dubbed));
+                assert.strictEqual(stream.ytId, undefined);
+                if (target === 'smarttube') assert.ok(stream.externalUrl.includes('package=com.teamsmart.videomanager.tv'));
+                if (target === 'tizentube') assert.ok(stream.externalUrl.includes('package=io.gh.reisxd.tizentube.cobalt'));
+            }
+            assert.deepStrictEqual(stream.behaviorHints, { notWebReady: true, bingeGroup: 'trailer' });
+        });
+    }
+    await test('legacy externalLink still generates YouTube URLs', async () => {
+        assert.strictEqual((await trailers({ external: true }))[0].externalUrl, 'https://www.youtube.com/watch?v=' + ids.dubbed);
+    });
+    await test('season-specific TMDB lookup retains series fallback', async () => {
+        reset({ localized: url => url.pathname.includes('/season/') ? [] : [tmdb(ids.dubbed)] });
+        assert.strictEqual((await trailers({ type: 'series', season: 2 }))[0].title, 'Primetime Temporada 2');
+    });
+    await test('rejected season videos also fall back to series videos', async () => {
+        reset({ localized: url => url.pathname.includes('/season/') ? [tmdb(ids.german, { iso_639_1: 'de' })] : [tmdb(ids.dubbed)] });
+        assert.strictEqual((await trailers({ type: 'series', season: 2, strict: true }))[0].ytId, ids.dubbed);
+    });
+    await test('real HTTP routes honor JSON, Base64 and query-string strict configuration', async () => {
+        const server = spawn(process.execPath, ['-r', './tests/fixtures/trailer-fetch.js', 'index.js'], {
+            cwd: path.join(__dirname, '..'), env: { ...process.env, PORT: '0' }, stdio: ['ignore', 'pipe', 'pipe']
+        });
+        // index.js logs the actual bound port, allowing collision-free tests.
+        const serverLogs = [];
+        server.stdout.on('data', chunk => serverLogs.push(chunk.toString()));
+        server.stderr.on('data', chunk => serverLogs.push(chunk.toString()));
+        try {
+            const port = await new Promise((resolve, reject) => {
+                const timer = setTimeout(() => reject(new Error('Server startup timeout')), 10000);
+                server.once('error', error => { clearTimeout(timer); reject(error); });
+                server.once('exit', code => { clearTimeout(timer); reject(new Error('Server exited ' + code)); });
+                server.stdout.on('data', chunk => {
+                    const match = chunk.toString().match(/Addon running at http:\/\/[^:]+:(\d+)/);
+                    if (match) { clearTimeout(timer); resolve(Number(match[1])); }
+                });
+            });
+            const manifest = await getJson(port, '/manifest.json');
+            assert.ok(manifest.config.some(option => option.key === 'strictLanguage'));
+            assert.ok(manifest.config.some(option => option.key === 'youtubeApiKey'));
+            const personalizedKey = 'test-only-secret-must-not-appear-in-logs';
+            const personalizedConfig = encodeURIComponent(JSON.stringify({
+                language: 'pt-BR', strictLanguage: false, youtubeApiKey: personalizedKey
+            }));
+            const personalized = await getJson(port,
+                '/' + personalizedConfig + '/stream/movie/tt34206385.json');
+            assert.strictEqual(personalized.streams[0].ytId, ids.dubbed);
+            await new Promise(resolve => setImmediate(resolve));
+            assert.ok(serverLogs.join('').includes('"hasYoutubeApiKey":true'));
+            assert.ok(!serverLogs.join('').includes(personalizedKey),
+                'API credentials must never be printed in process logs');
+            const protectedPaths = [
+                '/' + personalizedConfig + '/configure',
+                '/' + personalizedConfig + '/manifest.json'
+            ];
+            for (const protectedPath of protectedPaths) {
+                const headers = await getHeaders(port, protectedPath);
+                assert.strictEqual(headers['referrer-policy'], 'no-referrer');
+                assert.strictEqual(headers['cache-control'], 'private, no-store');
+            }
+            for (const strictLanguage of [true, 'true', false, 'false']) {
+                const config = { language: 'pt-BR', strictLanguage, playerTarget: 'internal' };
+                const encodings = [encodeURIComponent(JSON.stringify(config)), Buffer.from(JSON.stringify(config)).toString('base64'), 'lang=pt-BR&strictLanguage=' + strictLanguage];
+                for (const encoded of encodings) {
+                    const result = await getJson(port, '/' + encoded + '/stream/movie/tt34206385.json');
+                    assert.strictEqual(result.streams[0].ytId, ids.dubbed);
+                }
+            }
+            const strictGerman = await getJson(port, '/lang=fr-FR&strictLanguage=true/stream/movie/tt34206385.json');
+            assert.deepStrictEqual(strictGerman.streams, []);
+            const nonStrictFrench = await getJson(port, '/lang=fr-FR&strictLanguage=false/stream/movie/tt34206385.json');
+            assert.strictEqual(nonStrictFrench.streams[0].ytId, ids.unknown);
+            const episode = await getJson(port, '/lang=pt-BR/stream/series/tt34206385:2:2.json');
+            assert.deepStrictEqual(episode.streams, []);
+            const recapsOnly = await getJson(port, '/lang=pt-BR&onlyRecaps=true/stream/movie/tt34206385.json');
+            assert.deepStrictEqual(recapsOnly.streams, []);
+        } finally {
+            server.kill();
+        }
+    });
+    console.log(passed + ' regression tests passed');
+}
+
+run().catch(error => { console.error(error); process.exitCode = 1; });

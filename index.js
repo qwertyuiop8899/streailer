@@ -61,6 +61,16 @@ const manifest = {
             required: true
         },
         {
+            key: 'youtubeApiKey',
+            type: 'text',
+            title: 'YouTube Data API Key (optional; visible in addon install URL)'
+        },
+        {
+            key: 'strictLanguage',
+            type: 'checkbox',
+            title: 'Strict Trailer Language (Disable English Fallback)'
+        },
+        {
             key: 'playerTarget',
             type: 'select',
             title: 'Player Target / Modalità Riproduzione',
@@ -102,7 +112,17 @@ builder.defineStreamHandler(async ({ type, id, config }) => {
     activeStreamRequests += 1;
 
     try {
-        console.log(`[Streailer] Stream request: type=${type}, id=${id}, config=${JSON.stringify(config)}`);
+        // Log only an explicit allowlist: never print credential contents or
+        // unexpected configuration fields supplied by clients.
+        const safeConfig = {
+            language: config?.language,
+            strictLanguage: config?.strictLanguage,
+            playerTarget: config?.playerTarget,
+            showRecap: config?.showRecap,
+            onlyRecaps: config?.onlyRecaps,
+            hasYoutubeApiKey: Boolean(config?.youtubeApiKey)
+        };
+        console.log(`[Streailer] Stream request: type=${type}, id=${id}, config=${JSON.stringify(safeConfig)}`);
 
         if (!isTrailerProviderAvailable()) {
             console.warn('[Streailer] TMDB API key not configured');
@@ -115,6 +135,7 @@ builder.defineStreamHandler(async ({ type, id, config }) => {
         const useExternalLink = playerTarget !== 'internal' || config?.externalLink === 'true' || config?.externalLink === true;
         const showRecap = config?.showRecap === 'true' || config?.showRecap === true;
         const onlyRecaps = config?.onlyRecaps === 'true' || config?.onlyRecaps === true;
+        const strictLanguage = config?.strictLanguage === 'true' || config?.strictLanguage === true;
 
         // Parse ID (supports IMDb tt..., TMDB tmdb:12345, or direct TMDB numeric)
         let imdbId = null;
@@ -205,7 +226,9 @@ builder.defineStreamHandler(async ({ type, id, config }) => {
                 tmdbId,
                 language,
                 useExternalLink,
-                playerTarget
+                playerTarget,
+                strictLanguage,
+                config?.youtubeApiKey || ''
             );
 
             // Get recap streams for TV series if enabled
@@ -302,6 +325,7 @@ function normalizeConfigString(rawConfig) {
             const val = v !== undefined ? decodeURIComponent(v).trim() : 'true';
 
             if (key === 'lang' || key === 'language') obj.language = val;
+            else if (key === 'youtubeApiKey') obj.youtubeApiKey = val;
             else if (key === 'external' || key === 'externalLink') obj.externalLink = (val === 'true');
             else if (key === 'recap' || key === 'showRecap') obj.showRecap = (val === 'true');
             else if (key === 'onlyRecaps') obj.onlyRecaps = (val === 'true');
@@ -316,6 +340,18 @@ function normalizeConfigString(rawConfig) {
 
 // Create Express app
 const app = express();
+
+// Configuration URLs can contain user-provided API keys. Avoid sending those
+// URLs as Referer values to third-party assets, and discourage client/proxy
+// caching of pages and manifests that carry the installation configuration.
+// This does not hide credentials from URL history or reverse-proxy access logs.
+app.use((req, res, next) => {
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    if (req.path.endsWith('/configure') || req.path.endsWith('/manifest.json')) {
+        res.setHeader('Cache-Control', 'private, no-store');
+    }
+    next();
+});
 
 // Redirect root to configure
 app.get('/', (req, res) => {
@@ -377,8 +413,8 @@ app.use('/', addonRouter);
 // Start server
 const port = process.env.PORT || 7020;
 const host = '0.0.0.0';
-app.listen(port, host, () => {
-    console.log(`[Streailer] Addon running at http://${host}:${port}`);
+const server = app.listen(port, host, () => {
+    console.log(`[Streailer] Addon running at http://${host}:${server.address().port}`);
     console.log(`[Streailer] Configure: http://${host}:${port}/configure`);
     console.log(`[Streailer] Manifest: http://${host}:${port}/manifest.json`);
 });
